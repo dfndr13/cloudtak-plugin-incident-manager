@@ -13,7 +13,7 @@ import type { OpPeriodRegistryEntry } from '../domain/entities.ts';
 import { loadSchemaSubscription, schemaMissionToken } from './incidentSubscription.ts';
 import { loadMissionSchema, saveMissionSchema, type MissionSchema } from './missionSchema.ts';
 import type { IapInputs } from './iapData.ts';
-import { resourcesForAssignment } from './resourceActions.ts';
+import { addAircraftToPlan, resourcesForAssignment } from './resourceActions.ts';
 
 export interface IapCommsRow {
     zone: string;
@@ -352,6 +352,14 @@ function plansFromSchema(schema: MissionSchema): Record<string, unknown> {
  * change between periods and re-typing them each OP is the main friction).
  */
 export function prefillIapPlan(input: IapInputs, previous?: IapPlan | null): IapPlan {
+    // Resources added to air operations on the Resources tab join the 220.
+    const plan = prefillIapPlanBase(input, previous);
+    return input.resources
+        .filter((r) => (input.airOpsResourceIds ?? []).includes(r.id))
+        .reduce((p, r) => addAircraftToPlan(p, r), plan);
+}
+
+function prefillIapPlanBase(input: IapInputs, previous?: IapPlan | null): IapPlan {
     const f = input.form201;
     return {
         opNumber: input.op.opNumber,

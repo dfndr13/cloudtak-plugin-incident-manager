@@ -471,6 +471,16 @@
                                     >
                                         Demob
                                     </button>
+                                    <button
+                                        v-if='assignment.status !== "demobilized"'
+                                        type='button'
+                                        class='btn btn-outline-info btn-sm'
+                                        title="Add to air operations: this resource's OP IAP aircraft list (ICS-220)"
+                                        :disabled='saving || exporting'
+                                        @click='onAddToAirOps(assignment.id)'
+                                    >
+                                        Air ops
+                                    </button>
                                 </div>
                             </td>
                             <td>
@@ -524,8 +534,10 @@ import {
     assignableFor,
     assignmentOptionLabel,
     assignPatch,
+    addAircraftToPlan,
     checkInPatch,
     demobilizePatch,
+    hasAircraft,
     unassignPatch,
 } from '../../lib/resourceActions.ts';
 import {
@@ -541,7 +553,7 @@ import { buildIcs210Forms, ics210Rows } from '../../lib/ics210.ts';
 import { buildIcs214Forms, ics214Rows } from '../../lib/ics214.ts';
 import { buildIcs221Forms, ics221Releases } from '../../lib/ics221.ts';
 import { buildIcs211WfForms } from '../../lib/ics211wf.ts';
-import { loadIapPlan } from '../../lib/iapPlanPersistence.ts';
+import { loadIapPlan, saveIapPlan } from '../../lib/iapPlanPersistence.ts';
 import { usesWfForms } from '../../domain/iap.ts';
 import type { FilledForm, IapFormId } from '../../lib/iapPdf.ts';
 import { buildIapPdf, saveIapPdf } from '../../lib/iapPdf.ts';
@@ -739,6 +751,45 @@ async function onDemobilize(id: string): Promise<void> {
     if (!window.confirm('Demobilize this resource?')) return;
     await updateAssignment(activeMission.value, id, demobilizePatch());
     await logAction(id, { action: 'demob' });
+}
+
+/**
+ * Add a resource to its OP's air operations (ICS-220): into the saved IAP
+ * plan's aircraft list when there is one, and always into the trail, which
+ * the IAP prefill reads when the OP's plan is first built (ADR-005).
+ */
+async function onAddToAirOps(id: string): Promise<void> {
+    const mission = activeMission.value;
+    const resource = assignments.value.find((a) => a.id === id);
+    if (!mission || !resource) return;
+    const name = resource.resourceIdentifier.trim() || resource.resource.trim() || 'Resource';
+    exportTitle.value = 'ICS-220';
+    exportError.value = false;
+    exportNotice.value = '';
+    const op = resource.opNumber;
+    if (op == null) {
+        exportError.value = true;
+        exportNotice.value = `${name} has no operational period yet: set its OP first.`;
+        return;
+    }
+    exporting.value = true;
+    try {
+        const plan = await loadIapPlan(mission, op);
+        if (plan && hasAircraft(plan, resource)) {
+            exportNotice.value = `${name} is already on the OP${op} air operations list.`;
+            return;
+        }
+        if (plan) await saveIapPlan(mission, addAircraftToPlan(plan, resource));
+        await logAction(id, { action: 'air-ops' });
+        exportNotice.value = plan
+            ? `${name} added to the OP${op} IAP aircraft list (ICS-220).`
+            : `${name} will be on the OP${op} ICS-220 when its IAP is first built.`;
+    } catch (err) {
+        exportError.value = true;
+        exportNotice.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        exporting.value = false;
+    }
 }
 
 /** The resource trail on the management sync (ICS-210/211/214/221, ADR-005). */

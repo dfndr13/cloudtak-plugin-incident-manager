@@ -8,9 +8,11 @@
  *                 assignmentCallsign → its label, opNumber → its OP (ICS-204)
  *   Unassign      clears that link
  *   Demobilize    status → demobilized (ICS-221)
+ *   Air ops       a row in the OP's IAP aircraft list, 220 on (ICS-220)
  */
 
 import type { OpAssignment } from '../domain/entities.ts';
+import type { IapAircraftRow, IapPlan } from './iapPlanPersistence.ts';
 import type { ResourceAssignment } from './resourceAssignments.ts';
 
 export type ResourcePatch = Partial<Omit<ResourceAssignment, 'id'>>;
@@ -70,4 +72,32 @@ export function assignableFor(
 /** Option label for an OP assignment: "OP 2 · Division A". */
 export function assignmentOptionLabel(assignment: OpAssignment): string {
     return `OP ${assignment.opNumber} · ${assignment.label}`;
+}
+
+/** ICS-220 aircraft row for a resource, from fields it already has. */
+export function aircraftRowFor(resource: ResourceAssignment): IapAircraftRow {
+    return {
+        faaId: resource.resourceIdentifier.trim() || resource.resource.trim(),
+        category: resource.resource.trim(),
+        makeModel: '',
+        baseOwner: resource.agency.trim(),
+        available: '',
+        start: '',
+        remarks: '',
+    };
+}
+
+/** True when the plan's aircraft list already has this resource. */
+export function hasAircraft(plan: Pick<IapPlan, 'uas'>, resource: ResourceAssignment): boolean {
+    const id = aircraftRowFor(resource).faaId.toLowerCase();
+    return plan.uas.aircraft.some((a) => a.faaId.trim().toLowerCase() === id);
+}
+
+/** The plan with the resource added to air operations (220 on); unchanged if already there. */
+export function addAircraftToPlan<T extends Pick<IapPlan, 'uas'>>(plan: T, resource: ResourceAssignment): T {
+    if (hasAircraft(plan, resource)) return plan;
+    return {
+        ...plan,
+        uas: { ...plan.uas, include: true, aircraft: [...plan.uas.aircraft, aircraftRowFor(resource)] },
+    };
 }

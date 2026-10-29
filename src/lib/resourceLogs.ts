@@ -14,7 +14,7 @@ import type { ResourceAssignment } from './resourceAssignments.ts';
 
 export const RESOURCE_LOG_KEYWORD = 'ics-resource';
 
-export type ResourceLogAction = 'check-in' | 'assign' | 'unassign' | 'status' | 'demob';
+export type ResourceLogAction = 'check-in' | 'assign' | 'unassign' | 'status' | 'demob' | 'air-ops';
 
 /** Official ICS-210 statuses. */
 export const ICS210_STATUSES = ['Available', 'Assigned', 'O/S'] as const;
@@ -55,7 +55,7 @@ export interface ResourceLogEntry {
     content: string;
 }
 
-const ACTIONS: ResourceLogAction[] = ['check-in', 'assign', 'unassign', 'status', 'demob'];
+const ACTIONS: ResourceLogAction[] = ['check-in', 'assign', 'unassign', 'status', 'demob', 'air-ops'];
 
 function label(resource: ResourceAssignment): string {
     return resource.resourceIdentifier.trim() || resource.resource.trim() || resource.id;
@@ -86,6 +86,9 @@ export function buildResourceLogContent(input: ResourceLogInput): string {
             break;
         case 'demob':
             line = `${name} demobilized${op}`;
+            break;
+        case 'air-ops':
+            line = `${name} added to air operations${op}`;
             break;
     }
     return input.note?.trim() ? `${line}\n${input.note.trim()}` : line;
@@ -154,6 +157,13 @@ export function resourceTrail(logs: unknown[]): ResourceLogEntry[] {
         .map((log) => (log && typeof log === 'object' ? parseResourceLogEntry(log as Record<string, unknown>) : null))
         .filter((e): e is ResourceLogEntry => e !== null)
         .sort((a, b) => new Date(a.dtg).getTime() - new Date(b.dtg).getTime());
+}
+
+/** Resources added to air operations (ICS-220) in one OP, per the trail. */
+export function airOpsResourceIds(trail: ResourceLogEntry[], opNumber: number): string[] {
+    return [...new Set(trail
+        .filter((e) => e.action === 'air-ops' && e.opNumber === opNumber)
+        .map((e) => e.resourceId))];
 }
 
 /** Latest ICS-210 status recorded for a resource, or '' when none. */

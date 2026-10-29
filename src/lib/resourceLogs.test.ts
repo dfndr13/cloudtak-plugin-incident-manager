@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
     buildResourceLogBody,
     buildResourceLogContent,
+    airOpsResourceIds,
     currentIcs210Status,
     parseResourceLogEntry,
     RESOURCE_LOG_KEYWORD,
@@ -37,6 +38,7 @@ test('content reads as one sentence per action', () => {
     assert.equal(buildResourceLogContent({ action: 'status', resource: r, status: 'O/S' }), 'UAS 1 status O/S (OP 2)');
     assert.equal(buildResourceLogContent({ action: 'demob', resource: resource({ opNumber: null }) }),
         'UAS 1 demobilized');
+    assert.equal(buildResourceLogContent({ action: 'air-ops', resource: r }), 'UAS 1 added to air operations (OP 2)');
     assert.equal(buildResourceLogContent({ action: 'status', resource: r, status: 'O/S', note: ' battery swap ' }),
         'UAS 1 status O/S (OP 2)\nbattery swap');
 });
@@ -98,4 +100,13 @@ test('trail is oldest first and gives the latest ICS-210 status', () => {
     assert.equal(currentIcs210Status(trail, 'r1'), 'O/S');
     assert.equal(currentIcs210Status(trail, 'r2'), 'Assigned');
     assert.equal(currentIcs210Status(trail, 'r3'), '');
+});
+
+test('air-ops resources per OP from the trail', () => {
+    const e = (id: string, resourceId: string, op: number, action = 'air-ops') => ({
+        id, dtg: '2026-10-30T08:00:00Z', keywords: [RESOURCE_LOG_KEYWORD, `action:${action}`, `resource:${resourceId}`, `op:${op}`],
+    });
+    const trail = resourceTrail([e('1', 'r1', 2), e('2', 'r1', 2), e('3', 'r2', 3), e('4', 'r3', 2, 'demob')]);
+    assert.deepEqual(airOpsResourceIds(trail, 2), ['r1']);
+    assert.deepEqual(airOpsResourceIds(trail, 3), ['r2']);
 });

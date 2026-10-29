@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { OpAssignment } from '../domain/entities.ts';
+import type { IapPlan } from './iapPlanPersistence.ts';
 import {
+    addAircraftToPlan,
+    aircraftRowFor,
     assignableFor,
     assignmentOptionLabel,
     assignPatch,
     checkInPatch,
     demobilizePatch,
+    hasAircraft,
     isAssignedTo,
     resourcesForAssignment,
     unassignPatch,
@@ -90,4 +94,18 @@ test('assignable list is limited to the resource OP and sorted', () => {
         ['OP 2 · Division A', 'OP 2 · Division B']);
     assert.deepEqual(assignableFor(resource('x'), list).map(assignmentOptionLabel),
         ['OP 1 · Division A', 'OP 2 · Division A', 'OP 2 · Division B']);
+});
+
+test('air ops: aircraft row from existing fields, added once, 220 switched on', () => {
+    const plan = { uas: { include: false, aircraft: [] as ReturnType<typeof aircraftRowFor>[] } } as Pick<IapPlan, 'uas'>;
+    const r = resource('uas 1', { resource: 'Drone', agency: 'Agency A' });
+    assert.deepEqual(aircraftRowFor(r), {
+        faaId: 'UAS 1', category: 'Drone', makeModel: '', baseOwner: 'Agency A', available: '', start: '', remarks: '',
+    });
+    const once = addAircraftToPlan(plan, r);
+    assert.equal(once.uas.include, true);
+    assert.equal(once.uas.aircraft.length, 1);
+    assert.equal(hasAircraft(once, r), true);
+    assert.equal(addAircraftToPlan(once, r), once, 'already there: unchanged');
+    assert.equal(hasAircraft(plan, r), false);
 });

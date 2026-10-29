@@ -21,6 +21,8 @@ import type { IapAssignmentPlan, IapPlan } from './iapPlanPersistence.ts';
 import { ics204wf } from './ics204wf.ts';
 import { ics220wf, ics220wfPageCount } from './ics220wf.ts';
 import { buildIcs209Form } from './ics209.ts';
+import { airOpsResourceIds } from './resourceLogs.ts';
+import { loadResourceTrail } from './resourceLogPersistence.ts';
 
 export type { IncidentCategory };
 
@@ -39,6 +41,8 @@ export interface IapInputs {
     category: IncidentCategory;
     /** True when any OP resource is a drone/UAS — pulls in ICS 220. */
     hasUas: boolean;
+    /** Resources added to air operations for this OP (Resources tab, ADR-005). */
+    airOpsResourceIds: string[];
     preparedBy: string;
 }
 
@@ -83,6 +87,14 @@ export async function loadIapInputs(
         (schema.incident_response as Record<string, unknown>).resource_assignments,
     ).filter((r) => r.opNumber === op.opNumber);
 
+    // Air-ops actions from the resource trail; the IAP still builds without it.
+    let airOps: string[] = [];
+    try {
+        airOps = airOpsResourceIds(await loadResourceTrail(mission), op.opNumber);
+    } catch {
+        airOps = [];
+    }
+
     const from = splitDt(op.openedAt);
     const to = splitDt(op.closedAt);
 
@@ -99,7 +111,8 @@ export async function loadIapInputs(
         assignments,
         resources,
         category: opts.category ?? 'search',
-        hasUas: resources.some(isUasResource),
+        hasUas: resources.some(isUasResource) || airOps.length > 0,
+        airOpsResourceIds: airOps,
         preparedBy: opts.preparedBy ?? form201.preparedByName ?? '',
     };
 }
