@@ -168,7 +168,7 @@ function ics202(plan: IapPlan, ctx: IapContext, attachments: IapFormId[]): Fille
             '8 Approved by Incident Commander Name': plan.approvedBy,
             DateTime_5: preparedStamp(plan),
             ...(attachments.includes('ics220')
-                ? { 'Other Attachments 1': usesWildlandFireForms(plan) ? 'ICS 220 WF' : 'ICS 220 (UAS)' }
+                ? { 'Other Attachments 1': ics220Kind(plan) === 'wf' ? 'ICS 220 WF' : 'ICS 220 (UAS)' }
                 : {}),
         },
         check: [
@@ -464,6 +464,11 @@ function ics209(plan: IapPlan, ctx: IapContext): FilledForm {
     });
 }
 
+/** Which ICS-220 the OP prints: the ICS-220 WF (WF forms, or chosen) or the plugin's UAS page. */
+export function ics220Kind(plan: Pick<IapPlan, 'formVersion' | 'ics220Version'>): 'wf' | 'uas' {
+    return usesWildlandFireForms(plan) || plan.ics220Version === 'wf' ? 'wf' : 'uas';
+}
+
 /** NWCG WF versions (where they exist) when the OP plan chose them, else FEMA (ADR-005). */
 export function usesWildlandFireForms(plan: Pick<IapPlan, 'formVersion'>): boolean {
     return usesWfForms(plan.formVersion);
@@ -494,7 +499,7 @@ export function buildIapSections(
     if (forms.includes('ics207')) sections.push({ id: 'ics207', filled: ics207(plan, ctx) });
     sections.push({ id: 'ics208', filled: ics208(plan, ctx) });
     if (forms.includes('ics209')) sections.push({ id: 'ics209', filled: ics209(plan, ctx) });
-    if (forms.includes('ics220') && usesWildlandFireForms(plan)) {
+    if (forms.includes('ics220') && ics220Kind(plan) === 'wf') {
         for (let chunk = 0; chunk < ics220wfPageCount(plan); chunk++) {
             sections.push({ id: 'ics220wf', filled: ics220wf(plan, ctx, chunk) });
         }

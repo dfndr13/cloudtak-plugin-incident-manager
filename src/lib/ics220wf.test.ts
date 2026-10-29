@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ics220wf, ics220wfPageCount } from './ics220wf.ts';
+import { aircraftClasses, ics220wf, ics220wfPageCount } from './ics220wf.ts';
 import type { IapAircraftRow, IapPlan } from './iapPlanPersistence.ts';
 
 function aircraft(n: number): IapAircraftRow {
@@ -57,7 +57,7 @@ test('four aircraft per page; continuation pages say so', () => {
     const third = ics220wf(p, ctx, 2).text;
     assert.equal(third.IdentifierRow1, 'FA9');
     assert.equal(third.IdentifierRow2, undefined);
-    assert.match(third['General Remarks'], /Continuation page 3: UAS 9-9\./);
+    assert.match(third['General Remarks'], /Continuation page 3 of the aircraft lists\./);
 });
 
 test('multi-day OP and missing preparer override', () => {
@@ -68,4 +68,40 @@ test('multi-day OP and missing preparer override', () => {
     assert.equal(t['Operational Period Date'], '10/29/2026 - 10/30/2026');
     assert.equal(t['Prepared By'], 'Plans');
     assert.equal(t['Incident Name  Number'], 'Test Fire');
+});
+
+test('each class in its own block: helicopters 16, fixed-wing 17, UAS 18', () => {
+    const p = plan(0);
+    (p.uas as { aircraft: IapAircraftRow[] }).aircraft = [
+        { ...aircraft(1), faaId: 'N1H', category: 'Helicopter', makeModel: 'Bell 407' },
+        { ...aircraft(2), faaId: 'N2F', category: 'Fixed Wing', makeModel: 'Cessna 206' },
+        { ...aircraft(3), faaId: 'UAS 1', category: 'Drone' },
+    ];
+    assert.deepEqual(aircraftClasses(p).helicopters.map((a) => a.faaId), ['N1H']);
+    const t = ics220wf(p, ctx).text;
+    assert.equal(t['FAA#1'], 'N1H');
+    assert.equal(t.Type1, 'Helicopter');
+    assert.equal(t['Make/Model1'], 'Bell 407');
+    assert.equal(t.Helibase1, 'ICP');
+    assert.equal(t['Avail.1'], '0700');
+    assert.equal(t['FAA#12'], 'N2F');
+    assert.equal(t['Make/Model10'], 'Fixed Wing Cessna 206');
+    assert.equal(t.Base1, 'ICP');
+    assert.equal(t.Start9, '0800');
+    assert.equal(t['Avail.9'], '0700');
+    assert.equal(t.IdentifierRow1, 'UAS 1');
+    assert.equal(t.IdentifierRow2, undefined, 'no helicopter or fixed-wing in the UAS block');
+});
+
+test('page count follows the fullest block', () => {
+    const p = plan(0);
+    (p.uas as { aircraft: IapAircraftRow[] }).aircraft = [
+        ...Array.from({ length: 9 }, (_, i) => ({ ...aircraft(i), faaId: `H${i}`, category: 'Helicopter' })),
+        ...Array.from({ length: 4 }, (_, i) => ({ ...aircraft(i), faaId: `F${i}`, category: 'Fixed Wing' })),
+    ];
+    assert.equal(ics220wfPageCount(p), 2);
+    const second = ics220wf(p, ctx, 1).text;
+    assert.equal(second['FAA#1'], 'H8');
+    assert.equal(second['FAA#12'], 'F3');
+    assert.match(second['General Remarks'], /Continuation page 2 of the aircraft lists\./);
 });

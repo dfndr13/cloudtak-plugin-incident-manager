@@ -643,7 +643,7 @@
             >
                 <template #label>
                     <p class='text-uppercase text-white-50 small mb-0'>
-                        ICS 220 — UAS Operations
+                        ICS 220 — Air Operations
                     </p>
                 </template>
                 <label class='form-check d-flex align-items-center gap-2 mb-2'>
@@ -660,6 +660,25 @@
                         >(a UAS resource is assigned to this OP)</span>
                     </span>
                 </label>
+                <label
+                    v-if='plan.uas.include && !wfForms'
+                    class='d-flex align-items-center gap-2 mb-2 small'
+                >
+                    ICS-220 form
+                    <select
+                        v-model='ics220Choice'
+                        class='form-select form-select-sm w-auto'
+                    >
+                        <option value='uas'>UAS page (original)</option>
+                        <option value='wf'>ICS-220 WF (all aircraft)</option>
+                    </select>
+                </label>
+                <p
+                    v-else-if='plan.uas.include'
+                    class='form-text mt-0 mb-2'
+                >
+                    WF forms are on for this OP: the ICS-220 WF is used.
+                </p>
                 <div
                     v-if='plan.uas.include'
                     class='row g-2'
@@ -714,8 +733,8 @@
                         §10 Aircraft
                     </p>
                     <p class='form-text mt-0'>
-                        {{ uasRowsPerPage === 4 ? 'Four' : 'Five' }} per page — additional aircraft
-                        continue on repeat ICS-220{{ uasRowsPerPage === 4 ? ' WF' : '' }} pages appended to the IAP.
+                        {{ aircraftPerPageHint }} — additional aircraft continue on repeat
+                        {{ ics220Name }} pages appended to the IAP.
                     </p>
                     <div class='table-responsive'>
                         <table class='table table-sm small mb-0'>
@@ -757,10 +776,10 @@
                         + Aircraft
                     </button>
                     <span
-                        v-if='plan.uas.aircraft.length > uasRowsPerPage'
+                        v-if='ics220Pages > 1'
                         class='form-text ms-2'
                     >
-                        {{ Math.ceil(plan.uas.aircraft.length / uasRowsPerPage) }} ICS-220{{ uasRowsPerPage === 4 ? ' WF' : '' }} pages will be generated.
+                        {{ ics220Pages }} {{ ics220Name }} pages will be generated.
                     </span>
                 </template>
             </TablerBorder>
@@ -777,11 +796,17 @@ import {
     buildIapSections,
     iapFormPlanFor,
     loadIapInputs,
+    ics220Kind,
     usesWildlandFireForms,
     UAS_ROWS_PER_PAGE,
     type IapContext,
 } from '../../../lib/iapData.ts';
-import { ICS220WF_UAS_ROWS } from '../../../lib/ics220wf.ts';
+import {
+    ICS220WF_FIXED_WING_ROWS,
+    ICS220WF_HELICOPTER_ROWS,
+    ICS220WF_UAS_ROWS,
+    ics220wfPageCount,
+} from '../../../lib/ics220wf.ts';
 import { buildIapPdf, saveIapPdf } from '../../../lib/iapPdf.ts';
 import {
     blankAircraftRow,
@@ -866,18 +891,34 @@ const wfForms = computed({
     set(on: boolean): void { if (plan.value) plan.value.formVersion = on ? 'wf' : 'fema'; },
 });
 
-/** Aircraft rows per ICS-220 page: 5 on the plugin's UAS page, 4 in the WF block 18. */
-const uasRowsPerPage = computed(() => (
-    plan.value && usesWildlandFireForms(plan.value) ? ICS220WF_UAS_ROWS : UAS_ROWS_PER_PAGE
-));
+/** ICS-220 for this OP when WF forms are off: the original UAS page or the ICS-220 WF. */
+const ics220Choice = computed({
+    get(): 'uas' | 'wf' { return plan.value?.ics220Version ?? 'uas'; },
+    set(v: 'uas' | 'wf'): void { if (plan.value) plan.value.ics220Version = v; },
+});
+
+const ics220Name = computed(() => (plan.value && ics220Kind(plan.value) === 'wf' ? 'ICS-220 WF' : 'ICS-220 UAS'));
+
+const aircraftPerPageHint = computed(() => (plan.value && ics220Kind(plan.value) === 'wf'
+    ? `Per page: ${ICS220WF_HELICOPTER_ROWS} helicopters, ${ICS220WF_FIXED_WING_ROWS} fixed-wing, ${ICS220WF_UAS_ROWS} UAS`
+    : `${UAS_ROWS_PER_PAGE} per page`));
+
+const ics220Pages = computed(() => {
+    if (!plan.value) return 1;
+    return ics220Kind(plan.value) === 'wf'
+        ? ics220wfPageCount(plan.value)
+        : Math.max(1, Math.ceil(plan.value.uas.aircraft.length / UAS_ROWS_PER_PAGE));
+});
 
 const formsLabel = computed(() => {
     if (!plan.value) return '';
     return iapFormPlanFor(plan.value, ctx.value, hasUas.value)
         .map((id) => id.replace('ics', 'ICS-').toUpperCase().replace('ICS-220', 'ICS-220 UAS'))
-        .map((label) => (usesWildlandFireForms(plan.value!)
-            ? ({ 'ICS-204': 'ICS-204 WF', 'ICS-220 UAS': 'ICS-220 WF' } as Record<string, string>)[label] ?? label
-            : label))
+        .map((label) => {
+            if (label === 'ICS-204' && usesWildlandFireForms(plan.value!)) return 'ICS-204 WF';
+            if (label === 'ICS-220 UAS') return ics220Name.value;
+            return label;
+        })
         .join(' · ');
 });
 
