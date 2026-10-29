@@ -13,10 +13,10 @@
             <div class='ms-auto d-flex gap-2 align-items-center'>
                 <TablerEnum
                     v-if='activeMission'
-                    v-model='ics211Op'
-                    :options='ics211OpOptions'
+                    v-model='formsOp'
+                    :options='formsOpOptions'
                     :disabled='exporting'
-                    title='ICS-211 for'
+                    title='ICS forms for'
                 />
                 <button
                     v-if='activeMission'
@@ -24,9 +24,19 @@
                     class='btn btn-outline-primary btn-sm'
                     :disabled='exporting'
                     title='Incident Check-In List (ICS-211) PDF'
-                    @click='onExportIcs211'
+                    @click='onExportForm("ICS-211")'
                 >
-                    {{ exporting ? 'Building…' : 'ICS-211 PDF' }}
+                    ICS-211 PDF
+                </button>
+                <button
+                    v-if='activeMission'
+                    type='button'
+                    class='btn btn-outline-primary btn-sm'
+                    :disabled='exporting'
+                    title='Resource Status Change (ICS-210) PDF'
+                    @click='onExportForm("ICS-210")'
+                >
+                    ICS-210 PDF
                 </button>
                 <button
                     v-if='infoDismissed'
@@ -83,7 +93,7 @@
             v-if='exportNotice'
             class='mb-3'
             :severity='exportError ? "danger" : "success"'
-            title='ICS-211'
+            :title='exportTitle'
             :description='exportNotice'
         />
         <TablerInlineAlert
@@ -500,6 +510,8 @@ import {
 } from '../../lib/resourceLogs.ts';
 import { loadResourceTrail, sendResourceLog } from '../../lib/resourceLogPersistence.ts';
 import { buildIcs211Forms, ics211Resources } from '../../lib/ics211.ts';
+import { buildIcs210Forms, ics210Rows } from '../../lib/ics210.ts';
+import type { FilledForm, IapFormId } from '../../lib/iapPdf.ts';
 import { buildIapPdf, saveIapPdf } from '../../lib/iapPdf.ts';
 import { loadIcs201FromMission } from '../../lib/ics201.ts';
 
@@ -741,39 +753,69 @@ async function onIcs210StatusChange(id: string, label: string): Promise<void> {
     await logAction(id, { action: 'status', status: label as Ics210Status });
 }
 
-// ── ICS-211 Incident Check-In List (ADR-005) ───────────────────────────────
-const ICS211_ALL_OPS = 'All OPs';
-const ics211Op = ref(ICS211_ALL_OPS);
-const ics211OpOptions = computed(() => [ICS211_ALL_OPS, ...opLabelOptions.value]);
+// ── ICS-211 / ICS-210 exports (ADR-005) ────────────────────────────────────
+const ALL_OPS = 'All OPs';
+const formsOp = ref(ALL_OPS);
+const formsOpOptions = computed(() => [ALL_OPS, ...opLabelOptions.value]);
 const exporting = ref(false);
+const exportTitle = ref('');
 const exportNotice = ref('');
 const exportError = ref(false);
 
-async function onExportIcs211(): Promise<void> {
+function resourceNameFor(id: string): string {
+    const r = assignments.value.find((a) => a.id === id);
+    return r?.resourceIdentifier.trim() || r?.resource.trim() || id;
+}
+
+async function onExportForm(kind: 'ICS-211' | 'ICS-210'): Promise<void> {
     const mission = activeMission.value;
     if (!mission) return;
     exporting.value = true;
+    exportTitle.value = kind;
     exportNotice.value = '';
     exportError.value = false;
     try {
         const form201 = (await loadIcs201FromMission(mission.guid, mission.missionToken, mission.name, mission)).form;
         const incidentName = form201.incidentName || mission.name;
-        const op = ics211Op.value === ICS211_ALL_OPS ? 'all' : opNumberFromLabel(ics211Op.value);
-        const resources = ics211Resources(assignments.value, op);
-        const forms = buildIcs211Forms({
-            incidentName,
-            incidentNumber: form201.incidentNumber,
-            start: typeof op === 'number' ? opRegistry.value.find((o) => o.opNumber === op)?.openedAt : undefined,
-            preparedBy: form201.preparedByName,
-            preparedAt: new Date(),
-            resources,
-            assignmentName: assignmentNameFor,
-        });
-        const bytes = await buildIapPdf(forms.map((filled) => ({ id: 'ics211' as const, filled })));
+        const op = formsOp.value === ALL_OPS ? 'all' : opNumberFromLabel(formsOp.value);
+        const opEntry = typeof op === 'number' ? opRegistry.value.find((o) => o.opNumber === op) : undefined;
+        let id: IapFormId;
+        let forms: FilledForm[];
+        let count: string;
+        if (kind === 'ICS-211') {
+            const resources = ics211Resources(assignments.value, op);
+            id = 'ics211';
+            forms = buildIcs211Forms({
+                incidentName,
+                incidentNumber: form201.incidentNumber,
+                start: opEntry?.openedAt,
+                preparedBy: form201.preparedByName,
+                preparedAt: new Date(),
+                resources,
+                assignmentName: assignmentNameFor,
+            });
+            count = `${resources.length} resource${resources.length === 1 ? '' : 's'}`;
+        } else {
+            // Re-read so status changes made by other planners are included.
+            await loadTrail();
+            if (trailError.value) throw new Error(trailError.value);
+            const rows = ics210Rows(trail.value, op, resourceNameFor);
+            id = 'ics210';
+            forms = buildIcs210Forms({
+                incidentName,
+                opFrom: opEntry?.openedAt,
+                opTo: opEntry?.closedAt,
+                preparedBy: form201.preparedByName,
+                preparedAt: new Date(),
+                rows,
+            });
+            count = `${rows.length} status change${rows.length === 1 ? '' : 's'}`;
+        }
+        const bytes = await buildIapPdf(forms.map((filled) => ({ id, filled })));
         const suffix = op === 'all' ? '' : `-${op == null ? 'Initial' : `OP${op}`}`;
-        const safe = `${incidentName}${suffix}-ICS211`.replace(/[^\w.-]+/g, '_');
+        const safe = `${incidentName}${suffix}-${kind.replace('-', '')}`.replace(/[^\w.-]+/g, '_');
         const where = await saveIapPdf(bytes, `${safe}.pdf`, incidentName);
-        exportNotice.value = `${where} (${resources.length} resource${resources.length === 1 ? '' : 's'})`;
+        exportNotice.value = `${where} (${count})`;
     } catch (err) {
         exportError.value = true;
         exportNotice.value = err instanceof Error ? err.message : String(err);
