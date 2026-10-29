@@ -410,12 +410,9 @@ export function iapFormPlanFor(plan: IapPlan, ctx: IapContext, hasUas = false): 
     return order.filter((id) => set.has(id));
 }
 
-/**
- * NWCG WF versions (where they exist) or FEMA forms: the OP plan's choice,
- * else by incident type — WF for wildland fire (ADR-005).
- */
-export function usesWildlandFireForms(plan: Pick<IapPlan, 'formVersion'>, ctx: IapContext): boolean {
-    return usesWfForms(plan.formVersion, ctx.category);
+/** NWCG WF versions (where they exist) when the OP plan chose them, else FEMA (ADR-005). */
+export function usesWildlandFireForms(plan: Pick<IapPlan, 'formVersion'>): boolean {
+    return usesWfForms(plan.formVersion);
 }
 
 /** Build the ordered, filled section list for the merged IAP PDF. */
@@ -431,7 +428,7 @@ export function buildIapSections(
         { id: 'ics203', filled: ics203(plan, ctx) },
     ];
     plan.assignments.forEach((a) => {
-        if (usesWildlandFireForms(plan, ctx)) {
+        if (usesWildlandFireForms(plan)) {
             sections.push({ id: 'ics204wf', filled: ics204wf(plan, ctx.incidentName, a) });
         } else {
             sections.push({ id: 'ics204', filled: ics204(plan, ctx, a), pageField: 'IAP Page_3' });

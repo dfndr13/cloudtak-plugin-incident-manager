@@ -858,9 +858,9 @@ const orgFields = [
     { key: 'financeChief', label: 'Finance / Admin Chief' },
 ] as const;
 
-/** FEMA or NWCG WF forms for this OP (defaults by incident type). */
+/** FEMA or NWCG WF forms for this OP (FEMA unless ticked; any incident type). */
 const wfForms = computed({
-    get(): boolean { return plan.value ? usesWildlandFireForms(plan.value, ctx.value) : false; },
+    get(): boolean { return plan.value ? usesWildlandFireForms(plan.value) : false; },
     set(on: boolean): void { if (plan.value) plan.value.formVersion = on ? 'wf' : 'fema'; },
 });
 
@@ -868,7 +868,7 @@ const formsLabel = computed(() => {
     if (!plan.value) return '';
     return iapFormPlanFor(plan.value, ctx.value, hasUas.value)
         .map((id) => id.replace('ics', 'ICS-').toUpperCase().replace('ICS-220', 'ICS-220 UAS'))
-        .map((label) => (label === 'ICS-204' && usesWildlandFireForms(plan.value!, ctx.value) ? 'ICS-204 WF' : label))
+        .map((label) => (label === 'ICS-204' && usesWildlandFireForms(plan.value!) ? 'ICS-204 WF' : label))
         .join(' · ');
 });
 

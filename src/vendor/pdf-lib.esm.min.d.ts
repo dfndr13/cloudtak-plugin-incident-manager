@@ -70,10 +70,27 @@ export interface PDFField {
     getName(): string;
 }
 
+export class PDFName {
+    static of(name: string): PDFName;
+    toString(): string;
+}
+
+/** Radio group: widgets are picked by their on-state (export) name. */
+export interface PDFRadioGroup {
+    acroField: {
+        dict: { set(key: PDFName, value: PDFName): void };
+        getWidgets(): Array<{
+            getOnValue(): PDFName | undefined;
+            setAppearanceState(state: PDFName): void;
+        }>;
+    };
+}
+
 export interface PDFForm {
     getFields(): PDFField[];
     getTextField(name: string): PDFTextField;
     getCheckBox(name: string): PDFCheckBox;
+    getRadioGroup(name: string): PDFRadioGroup;
     getField(name: string): {
         acroField: {
             getWidgets(): Array<{

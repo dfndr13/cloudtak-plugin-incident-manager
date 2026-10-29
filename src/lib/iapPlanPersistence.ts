@@ -14,7 +14,6 @@ import { loadSchemaSubscription, schemaMissionToken } from './incidentSubscripti
 import { loadMissionSchema, saveMissionSchema, type MissionSchema } from './missionSchema.ts';
 import type { IapInputs } from './iapData.ts';
 import { resourcesForAssignment } from './resourceActions.ts';
-import { usesWfForms } from '../domain/iap.ts';
 
 export interface IapCommsRow {
     zone: string;
@@ -161,7 +160,7 @@ export interface IapPlan {
     includeForms: { ics207: boolean; ics209: boolean; ics205a: boolean };
     /**
      * FEMA forms or the NWCG wildland fire (WF) versions where they exist
-     * (ICS-204 WF…). Unset = by incident type: WF for wildland fire, else FEMA.
+     * (ICS-204 WF…), chosen per OP on any incident type. Unset = FEMA.
      */
     formVersion?: 'fema' | 'wf';
     /**
@@ -397,7 +396,7 @@ export function prefillIapPlan(input: IapInputs, previous?: IapPlan | null): Iap
         includeForms: previous?.includeForms
             ? { ...previous.includeForms }
             : { ics207: false, ics209: false, ics205a: false },
-        formVersion: previous?.formVersion ?? (usesWfForms(undefined, input.category) ? 'wf' : 'fema'),
+        formVersion: previous?.formVersion ?? 'fema',
         preparers: previous?.preparers
             ? { ...previous.preparers }
             : { ics205: '', ics206: '', ics220: '' },

@@ -48,9 +48,8 @@ test('usesExtendedIcsSet / isUasLabel', () => {
     assert.equal(isUasLabel('Grid Team', 'GT-4'), false);
 });
 
-test('usesWfForms: explicit choice wins, else WF only for wildland fire', () => {
-    assert.equal(usesWfForms(undefined, 'wildland-fire'), true);
-    assert.equal(usesWfForms(undefined, 'search'), false);
-    assert.equal(usesWfForms('wf', 'search'), true);
-    assert.equal(usesWfForms('fema', 'wildland-fire'), false);
+test('usesWfForms: WF only when chosen, FEMA by default on every incident type', () => {
+    assert.equal(usesWfForms('wf'), true);
+    assert.equal(usesWfForms('fema'), false);
+    assert.equal(usesWfForms(undefined), false);
 });

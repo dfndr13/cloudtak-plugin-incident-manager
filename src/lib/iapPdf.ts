@@ -9,7 +9,7 @@
  * blank box, never a failed export.
  */
 
-import { PDFDocument, StandardFonts } from '../vendor/pdf-lib.esm.min.js';
+import { PDFDocument, PDFName, StandardFonts } from '../vendor/pdf-lib.esm.min.js';
 import type { PDFFont, PDFForm } from '../vendor/pdf-lib.esm.min.js';
 import ics202Url from '../assets/iap/ics202.pdf?url';
 import ics203Url from '../assets/iap/ics203.pdf?url';
@@ -23,6 +23,7 @@ import ics208Url from '../assets/iap/ics208.pdf?url';
 import ics209Url from '../assets/iap/ics209.pdf?url';
 import ics210Url from '../assets/iap/ics210.pdf?url';
 import ics211Url from '../assets/iap/ics211.pdf?url';
+import ics211wfUrl from '../assets/iap/ics211wf.pdf?url';
 import ics214Url from '../assets/iap/ics214.pdf?url';
 import ics221Url from '../assets/iap/ics221.pdf?url';
 import ics220Url from '../assets/iap/ics220-uas.pdf?url';
@@ -34,7 +35,7 @@ export type IapFormId =
     /** NWCG wildland fire version of the ICS-204 (wildland fire incidents). */
     | 'ics204wf'
     /** Not IAP forms: exported from the Resources tab (ADR-005). */
-    | 'ics210' | 'ics211' | 'ics214' | 'ics221';
+    | 'ics210' | 'ics211' | 'ics211wf' | 'ics214' | 'ics221';
 
 const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics202: ics202Url,
@@ -49,6 +50,7 @@ const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics209: ics209Url,
     ics210: ics210Url,
     ics211: ics211Url,
+    ics211wf: ics211wfUrl,
     ics214: ics214Url,
     ics221: ics221Url,
     ics220: ics220Url,
@@ -59,6 +61,12 @@ export interface FilledForm {
     text: Record<string, string>;
     /** Check box field names to check. Unknown names are skipped. */
     check?: string[];
+    /**
+     * Radio group name → on-state (export) name of the button to select, e.g.
+     * '0'. Not the option label: templates reuse labels ("Choice1" for both
+     * YES and NO). Unknown names/options are skipped.
+     */
+    radio?: Record<string, string>;
     /** Pages to keep (0-based). ICS templates carry instruction pages we drop. */
     pages?: number[];
     /**
@@ -151,6 +159,20 @@ function setCheck(form: PDFForm, name: string): void {
     }
 }
 
+function setRadio(form: PDFForm, name: string, onState: string): void {
+    try {
+        const field = form.getRadioGroup(name).acroField;
+        const widgets = field.getWidgets();
+        const target = widgets.find((w) => String(w.getOnValue()) === `/${onState}`);
+        if (!target) return;
+        const value = PDFName.of(onState);
+        field.dict.set(PDFName.of('V'), value);
+        for (const w of widgets) w.setAppearanceState(w === target ? value : PDFName.of('Off'));
+    } catch {
+        // Absent group — skip.
+    }
+}
+
 /** Fill one template and return a flattened single-form document. */
 export async function fillIcsForm(id: IapFormId, filled: FilledForm): Promise<PDFDocument> {
     const doc = await loadTemplate(id);
@@ -159,6 +181,7 @@ export async function fillIcsForm(id: IapFormId, filled: FilledForm): Promise<PD
 
     for (const [name, value] of Object.entries(filled.text)) setText(form, name, value, helvetica);
     for (const name of filled.check ?? []) setCheck(form, name);
+    for (const [name, option] of Object.entries(filled.radio ?? {})) setRadio(form, name, option);
 
     try {
         form.updateFieldAppearances(helvetica);

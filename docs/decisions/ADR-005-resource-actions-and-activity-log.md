@@ -63,8 +63,10 @@ writers do not overwrite each other.
      Notable Activities;
    - ICS-221: one form per demobilized resource.
 
-4. **FEMA or wildland fire forms per incident.** For a wildland fire incident the NWCG versions are
-   used where they exist (ICS-204 WF, ICS-211 WF, ICS-220 WF), fed from the same records.
+4. **FEMA or NWCG wildland fire (WF) forms, per operational period, on any incident type.** A
+   "WF forms" switch on each OP's IAP plan (and a FEMA / WF selector on the Resources tab, which
+   follows that OP's plan) picks the NWCG versions where they exist (ICS-204 WF, ICS-211 WF,
+   ICS-220 WF), fed from the same records. FEMA is the default; the incident type does not change it.
 
 ## Consequences
 

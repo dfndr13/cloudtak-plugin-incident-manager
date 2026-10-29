@@ -18,6 +18,13 @@
                     :disabled='exporting'
                     title='ICS forms for'
                 />
+                <TablerEnum
+                    v-if='activeMission'
+                    v-model='formsVersion'
+                    :options='FORM_VERSIONS'
+                    :disabled='exporting'
+                    title='FEMA or NWCG wildland fire (WF) version — ICS-211 WF is one card per resource'
+                />
                 <button
                     v-if='activeMission'
                     type='button'
@@ -533,6 +540,9 @@ import { buildIcs211Forms, ics211Resources } from '../../lib/ics211.ts';
 import { buildIcs210Forms, ics210Rows } from '../../lib/ics210.ts';
 import { buildIcs214Forms, ics214Rows } from '../../lib/ics214.ts';
 import { buildIcs221Forms, ics221Releases } from '../../lib/ics221.ts';
+import { buildIcs211WfForms } from '../../lib/ics211wf.ts';
+import { loadIapPlan } from '../../lib/iapPlanPersistence.ts';
+import { usesWfForms } from '../../domain/iap.ts';
 import type { FilledForm, IapFormId } from '../../lib/iapPdf.ts';
 import { buildIapPdf, saveIapPdf } from '../../lib/iapPdf.ts';
 import { loadIcs201FromMission } from '../../lib/ics201.ts';
@@ -779,8 +789,29 @@ async function onIcs210StatusChange(id: string, label: string): Promise<void> {
 const ALL_OPS = 'All OPs';
 const formsOp = ref(ALL_OPS);
 const formsOpOptions = computed(() => [ALL_OPS, ...opLabelOptions.value]);
+/** FEMA or NWCG WF version (only the ICS-211 has a WF version here). */
+const FORM_VERSIONS = ['FEMA', 'WF'];
+const formsVersion = ref('FEMA');
 const exporting = ref(false);
 const exportTitle = ref('');
+
+/** Follow the selected OP's IAP choice; FEMA otherwise (ADR-005). */
+async function syncFormsVersion(): Promise<void> {
+    const mission = activeMission.value;
+    if (!mission) return;
+    const op = opNumberFromLabel(formsOp.value);
+    let version: 'fema' | 'wf' | undefined;
+    if (op != null) {
+        try {
+            version = (await loadIapPlan(mission, op))?.formVersion;
+        } catch {
+            // No readable IAP for this OP: FEMA.
+        }
+    }
+    formsVersion.value = usesWfForms(version) ? 'WF' : 'FEMA';
+}
+
+watch([formsOp, () => activeMission.value?.guid], () => void syncFormsVersion(), { immediate: true });
 const exportNotice = ref('');
 const exportError = ref(false);
 
@@ -804,7 +835,17 @@ async function onExportForm(kind: 'ICS-211' | 'ICS-210' | 'ICS-214' | 'ICS-221')
         let id: IapFormId;
         let forms: FilledForm[];
         let count: string;
-        if (kind === 'ICS-211') {
+        if (kind === 'ICS-211' && formsVersion.value === 'WF') {
+            const resources = ics211Resources(assignments.value, op);
+            id = 'ics211wf';
+            forms = buildIcs211WfForms({
+                incidentName,
+                incidentNumber: form201.incidentNumber,
+                resources,
+                assignmentName: assignmentNameFor,
+            });
+            count = `${resources.length} WF check-in form${resources.length === 1 ? '' : 's'}`;
+        } else if (kind === 'ICS-211') {
             const resources = ics211Resources(assignments.value, op);
             id = 'ics211';
             forms = buildIcs211Forms({
@@ -865,7 +906,8 @@ async function onExportForm(kind: 'ICS-211' | 'ICS-210' | 'ICS-214' | 'ICS-221')
         }
         const bytes = await buildIapPdf(forms.map((filled) => ({ id, filled })));
         const suffix = op === 'all' ? '' : `-${op == null ? 'Initial' : `OP${op}`}`;
-        const safe = `${incidentName}${suffix}-${kind.replace('-', '')}`.replace(/[^\w.-]+/g, '_');
+        const version = id.endsWith('wf') ? 'WF' : '';
+        const safe = `${incidentName}${suffix}-${kind.replace('-', '')}${version}`.replace(/[^\w.-]+/g, '_');
         const where = await saveIapPdf(bytes, `${safe}.pdf`, incidentName);
         exportNotice.value = `${where} (${count})`;
     } catch (err) {

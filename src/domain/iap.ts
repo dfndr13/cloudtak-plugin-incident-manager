@@ -16,11 +16,11 @@ export type IncidentCategory = 'search' | 'rescue' | 'recovery' | 'evidence'
     | 'wildland-fire' | 'disaster' | 'other' | string;
 
 /**
- * NWCG wildland fire (WF) form versions or FEMA: the explicit choice, else by
- * incident type — WF for wildland fire, FEMA otherwise (ADR-005).
+ * NWCG wildland fire (WF) form versions or FEMA, on any incident type: WF only
+ * when chosen, FEMA otherwise (ADR-005).
  */
-export function usesWfForms(formVersion: 'fema' | 'wf' | undefined, category: IncidentCategory): boolean {
-    return (formVersion ?? (category === 'wildland-fire' ? 'wf' : 'fema')) === 'wf';
+export function usesWfForms(formVersion: 'fema' | 'wf' | undefined): boolean {
+    return formVersion === 'wf';
 }
 
 /** Categories that brief from the extended ICS set. */
