@@ -13,6 +13,7 @@ import type { OpPeriodRegistryEntry } from '../domain/entities.ts';
 import { loadSchemaSubscription, schemaMissionToken } from './incidentSubscription.ts';
 import { loadMissionSchema, saveMissionSchema, type MissionSchema } from './missionSchema.ts';
 import type { IapInputs } from './iapData.ts';
+import { resourcesForAssignment } from './resourceActions.ts';
 
 export interface IapCommsRow {
     zone: string;
@@ -394,8 +395,7 @@ export function prefillIapPlan(input: IapInputs, previous?: IapPlan | null): Iap
             : { ics205: '', ics206: '', ics220: '' },
         assignments: input.assignments.map((a) => {
             const prior = previous?.assignments.find((p) => p.segmentUid === a.segmentUid);
-            const resources = input.resources
-                .filter((r) => !a.team || r.resourceIdentifier === a.team)
+            const resources = resourcesForAssignment(input.resources, a)
                 .map((r) => ({
                     identifier: r.resourceIdentifier,
                     leader: r.agency,

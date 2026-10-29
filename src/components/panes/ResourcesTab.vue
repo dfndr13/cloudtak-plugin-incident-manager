@@ -293,6 +293,9 @@
                             >
                                 OP
                             </th>
+                            <th style='min-width: 220px;'>
+                                Assignment / Actions
+                            </th>
                             <th style='width: 72px;' />
                         </tr>
                     </thead>
@@ -365,6 +368,36 @@
                                 />
                             </td>
                             <td>
+                                <TablerEnum
+                                    :model-value='assignmentLabelFor(assignment)'
+                                    :options='assignmentOptionsFor(assignment)'
+                                    :disabled='saving'
+                                    @update:model-value='onAssignmentChange(assignment.id, $event)'
+                                />
+                                <div class='d-flex gap-1 mt-1'>
+                                    <button
+                                        v-if='assignment.status !== "have" && assignment.status !== "demobilized"'
+                                        type='button'
+                                        class='btn btn-outline-success btn-sm'
+                                        title='Check in now (ICS-211)'
+                                        :disabled='saving'
+                                        @click='onCheckIn(assignment.id)'
+                                    >
+                                        Check in
+                                    </button>
+                                    <button
+                                        v-if='assignment.status !== "demobilized"'
+                                        type='button'
+                                        class='btn btn-outline-secondary btn-sm'
+                                        title='Demobilize (ICS-221)'
+                                        :disabled='saving'
+                                        @click='onDemobilize(assignment.id)'
+                                    >
+                                        Demob
+                                    </button>
+                                </div>
+                            </td>
+                            <td>
                                 <button
                                     type='button'
                                     class='btn btn-outline-danger btn-sm'
@@ -407,9 +440,18 @@ import {
     type ResourceAssignment,
     type ResourceAssignmentStatus,
 } from '../../lib/resourceAssignments.ts';
-import type { OpPeriodRegistryEntry } from '../../domain/entities.ts';
+import type { OpAssignment, OpPeriodRegistryEntry } from '../../domain/entities.ts';
 import { currentOpPeriod } from '../../domain/registry.ts';
 import { createRegistryStore } from '../../lib/registryPersistence.ts';
+import { createAssignmentStore } from '../../lib/opAssignmentPersistence.ts';
+import {
+    assignableFor,
+    assignmentOptionLabel,
+    assignPatch,
+    checkInPatch,
+    demobilizePatch,
+    unassignPatch,
+} from '../../lib/resourceActions.ts';
 
 const { activeMission, requireActiveMission, selectHTabGuarded } = useIncident();
 const {
@@ -531,6 +573,60 @@ async function loadOpRegistry(): Promise<void> {
 async function onOpLabelChange(id: string, label: string): Promise<void> {
     if (!activeMission.value) return;
     await updateAssignment(activeMission.value, id, { opNumber: opNumberFromLabel(label) });
+}
+
+const UNASSIGNED = '—';
+/** OP assignments (segments) a resource can be placed on (ICS-204, ADR-005). */
+const opAssignments = ref<OpAssignment[]>([]);
+
+async function loadOpAssignments(): Promise<void> {
+    const mission = activeMission.value;
+    if (!mission?.mgmt) {
+        opAssignments.value = [];
+        return;
+    }
+    try {
+        opAssignments.value = await createAssignmentStore(mission).load();
+    } catch {
+        opAssignments.value = [];
+    }
+}
+
+function assignmentOptionsFor(resource: ResourceAssignment): string[] {
+    const options = assignableFor(resource, opAssignments.value).map(assignmentOptionLabel);
+    const current = assignmentLabelFor(resource);
+    if (current !== UNASSIGNED && !options.includes(current)) options.unshift(current);
+    return [UNASSIGNED, ...options];
+}
+
+function assignmentLabelFor(resource: ResourceAssignment): string {
+    if (!resource.assignmentUid) return UNASSIGNED;
+    const match = opAssignments.value.find((a) => a.segmentUid === resource.assignmentUid
+        && (resource.opNumber == null || a.opNumber === resource.opNumber));
+    if (match) return assignmentOptionLabel(match);
+    return resource.assignmentCallsign?.trim() || resource.assignmentUid;
+}
+
+async function onAssignmentChange(id: string, label: string): Promise<void> {
+    if (!activeMission.value) return;
+    if (label === UNASSIGNED) {
+        await updateAssignment(activeMission.value, id, unassignPatch());
+        return;
+    }
+    const target = opAssignments.value.find((a) => assignmentOptionLabel(a) === label);
+    if (!target) return;
+    await updateAssignment(activeMission.value, id, assignPatch(target));
+}
+
+async function onCheckIn(id: string): Promise<void> {
+    if (!activeMission.value) return;
+    await updateAssignment(activeMission.value, id, checkInPatch(nowDatetimeLocal()));
+}
+
+async function onDemobilize(id: string): Promise<void> {
+    if (!activeMission.value) return;
+    if (!window.confirm('Demobilize this resource?')) return;
+    await updateAssignment(activeMission.value, id, demobilizePatch());
 }
 
 const resourceFormOptions = computed(() => [RESOURCE_PLACEHOLDER, ...resourceTypeOptions]);
@@ -740,6 +836,7 @@ watch(() => activeMission.value?.guid, async (guid) => {
     defaultAgencyInput.value = effectiveDefaultAgency.value;
     applyEffectiveDefaultToForm(true);
     await loadOpRegistry();
+    await loadOpAssignments();
 }, { immediate: true });
 
 watch(defaultAgency, () => {
