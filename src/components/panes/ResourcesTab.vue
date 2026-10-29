@@ -62,6 +62,13 @@
             :title='statusError ? "Error" : "Saved"'
             :description='statusMessage'
         />
+        <TablerInlineAlert
+            v-if='trailError'
+            class='mb-3'
+            severity='warning'
+            title='Resource log'
+            :description='trailError'
+        />
 
         <TablerBorder
             v-if='!infoDismissed'
@@ -374,6 +381,14 @@
                                     :disabled='saving'
                                     @update:model-value='onAssignmentChange(assignment.id, $event)'
                                 />
+                                <TablerEnum
+                                    class='mt-1'
+                                    :model-value='ics210StatusFor(assignment.id)'
+                                    :options='ics210Options'
+                                    :disabled='saving'
+                                    title='ICS-210 status'
+                                    @update:model-value='onIcs210StatusChange(assignment.id, $event)'
+                                />
                                 <div class='d-flex gap-1 mt-1'>
                                     <button
                                         v-if='assignment.status !== "have" && assignment.status !== "demobilized"'
@@ -452,6 +467,14 @@ import {
     demobilizePatch,
     unassignPatch,
 } from '../../lib/resourceActions.ts';
+import {
+    currentIcs210Status,
+    ICS210_STATUSES,
+    type Ics210Status,
+    type ResourceLogEntry,
+    type ResourceLogInput,
+} from '../../lib/resourceLogs.ts';
+import { loadResourceTrail, sendResourceLog } from '../../lib/resourceLogPersistence.ts';
 
 const { activeMission, requireActiveMission, selectHTabGuarded } = useIncident();
 const {
@@ -607,26 +630,88 @@ function assignmentLabelFor(resource: ResourceAssignment): string {
     return resource.assignmentCallsign?.trim() || resource.assignmentUid;
 }
 
+/** The assignment's own name for the log ("Division A"), '' when unassigned. */
+function assignmentNameFor(resource: ResourceAssignment): string {
+    if (!resource.assignmentUid) return '';
+    const match = opAssignments.value.find((a) => a.segmentUid === resource.assignmentUid
+        && (resource.opNumber == null || a.opNumber === resource.opNumber));
+    return match?.label || resource.assignmentCallsign?.trim() || resource.assignmentUid;
+}
+
 async function onAssignmentChange(id: string, label: string): Promise<void> {
-    if (!activeMission.value) return;
+    const mission = activeMission.value;
+    const before = assignments.value.find((a) => a.id === id);
+    if (!mission || !before) return;
+    if (label === assignmentLabelFor(before)) return;
+    const from = assignmentNameFor(before);
     if (label === UNASSIGNED) {
-        await updateAssignment(activeMission.value, id, unassignPatch());
+        if (!from) return;
+        await updateAssignment(mission, id, unassignPatch());
+        await logAction(id, { action: 'unassign', from });
         return;
     }
     const target = opAssignments.value.find((a) => assignmentOptionLabel(a) === label);
     if (!target) return;
-    await updateAssignment(activeMission.value, id, assignPatch(target));
+    await updateAssignment(mission, id, assignPatch(target));
+    await logAction(id, { action: 'assign', from, to: target.label });
 }
 
 async function onCheckIn(id: string): Promise<void> {
     if (!activeMission.value) return;
-    await updateAssignment(activeMission.value, id, checkInPatch(nowDatetimeLocal()));
+    const at = nowDatetimeLocal();
+    await updateAssignment(activeMission.value, id, checkInPatch(at));
+    await logAction(id, { action: 'check-in', at });
 }
 
 async function onDemobilize(id: string): Promise<void> {
     if (!activeMission.value) return;
     if (!window.confirm('Demobilize this resource?')) return;
     await updateAssignment(activeMission.value, id, demobilizePatch());
+    await logAction(id, { action: 'demob' });
+}
+
+/** The resource trail on the management sync (ICS-210/211/214/221, ADR-005). */
+const trail = ref<ResourceLogEntry[]>([]);
+const trailError = ref('');
+const ics210Options = [UNASSIGNED, ...ICS210_STATUSES];
+
+async function loadTrail(): Promise<void> {
+    trailError.value = '';
+    const mission = activeMission.value;
+    if (!mission) {
+        trail.value = [];
+        return;
+    }
+    try {
+        trail.value = await loadResourceTrail(mission);
+    } catch (err) {
+        trail.value = [];
+        trailError.value = `Resource log unavailable: ${err instanceof Error ? err.message : String(err)}`;
+    }
+}
+
+/** Write one trail entry for a resource (after its record is saved). */
+async function logAction(id: string, input: Omit<ResourceLogInput, 'resource'>): Promise<void> {
+    const mission = activeMission.value;
+    const resource = assignments.value.find((a) => a.id === id);
+    if (!mission || !resource) return;
+    const entry = { ...input, resource };
+    try {
+        const written = await sendResourceLog(mission, entry);
+        if (written) trail.value = [...trail.value, written];
+        trailError.value = '';
+    } catch (err) {
+        trailError.value = `Saved, but the resource log entry failed: ${err instanceof Error ? err.message : String(err)}`;
+    }
+}
+
+function ics210StatusFor(id: string): string {
+    return currentIcs210Status(trail.value, id) || UNASSIGNED;
+}
+
+async function onIcs210StatusChange(id: string, label: string): Promise<void> {
+    if (label === UNASSIGNED || label === ics210StatusFor(id)) return;
+    await logAction(id, { action: 'status', status: label as Ics210Status });
 }
 
 const resourceFormOptions = computed(() => [RESOURCE_PLACEHOLDER, ...resourceTypeOptions]);
@@ -837,6 +922,7 @@ watch(() => activeMission.value?.guid, async (guid) => {
     applyEffectiveDefaultToForm(true);
     await loadOpRegistry();
     await loadOpAssignments();
+    await loadTrail();
 }, { immediate: true });
 
 watch(defaultAgency, () => {
