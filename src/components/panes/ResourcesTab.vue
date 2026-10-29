@@ -39,6 +39,16 @@
                     ICS-210 PDF
                 </button>
                 <button
+                    v-if='activeMission'
+                    type='button'
+                    class='btn btn-outline-primary btn-sm'
+                    :disabled='exporting'
+                    title='Activity Log (ICS-214) PDF of the resource trail'
+                    @click='onExportForm("ICS-214")'
+                >
+                    ICS-214 PDF
+                </button>
+                <button
                     v-if='infoDismissed'
                     type='button'
                     class='btn btn-outline-secondary btn-sm d-inline-flex align-items-center'
@@ -511,6 +521,7 @@ import {
 import { loadResourceTrail, sendResourceLog } from '../../lib/resourceLogPersistence.ts';
 import { buildIcs211Forms, ics211Resources } from '../../lib/ics211.ts';
 import { buildIcs210Forms, ics210Rows } from '../../lib/ics210.ts';
+import { buildIcs214Forms, ics214Rows } from '../../lib/ics214.ts';
 import type { FilledForm, IapFormId } from '../../lib/iapPdf.ts';
 import { buildIapPdf, saveIapPdf } from '../../lib/iapPdf.ts';
 import { loadIcs201FromMission } from '../../lib/ics201.ts';
@@ -753,7 +764,7 @@ async function onIcs210StatusChange(id: string, label: string): Promise<void> {
     await logAction(id, { action: 'status', status: label as Ics210Status });
 }
 
-// ── ICS-211 / ICS-210 exports (ADR-005) ────────────────────────────────────
+// ── ICS-211 / ICS-210 / ICS-214 exports (ADR-005) ──────────────────────────
 const ALL_OPS = 'All OPs';
 const formsOp = ref(ALL_OPS);
 const formsOpOptions = computed(() => [ALL_OPS, ...opLabelOptions.value]);
@@ -767,7 +778,7 @@ function resourceNameFor(id: string): string {
     return r?.resourceIdentifier.trim() || r?.resource.trim() || id;
 }
 
-async function onExportForm(kind: 'ICS-211' | 'ICS-210'): Promise<void> {
+async function onExportForm(kind: 'ICS-211' | 'ICS-210' | 'ICS-214'): Promise<void> {
     const mission = activeMission.value;
     if (!mission) return;
     exporting.value = true;
@@ -795,6 +806,23 @@ async function onExportForm(kind: 'ICS-211' | 'ICS-210'): Promise<void> {
                 assignmentName: assignmentNameFor,
             });
             count = `${resources.length} resource${resources.length === 1 ? '' : 's'}`;
+        } else if (kind === 'ICS-214') {
+            await loadTrail();
+            if (trailError.value) throw new Error(trailError.value);
+            const rows = ics214Rows(trail.value, op);
+            id = 'ics214';
+            forms = buildIcs214Forms({
+                incidentName,
+                opFrom: opEntry?.openedAt,
+                opTo: opEntry?.closedAt,
+                name: form201.preparedByName,
+                // No stored ICS position: left for hand entry.
+                icsPosition: '',
+                homeAgency: yourAgency.value.trim(),
+                preparedAt: new Date(),
+                rows,
+            });
+            count = `${rows.length} activit${rows.length === 1 ? 'y' : 'ies'}`;
         } else {
             // Re-read so status changes made by other planners are included.
             await loadTrail();
