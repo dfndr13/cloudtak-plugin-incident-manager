@@ -714,8 +714,8 @@
                         §10 Aircraft
                     </p>
                     <p class='form-text mt-0'>
-                        Five per page — additional aircraft continue on repeat ICS-220 pages
-                        appended to the IAP.
+                        {{ uasRowsPerPage === 4 ? 'Four' : 'Five' }} per page — additional aircraft
+                        continue on repeat ICS-220{{ uasRowsPerPage === 4 ? ' WF' : '' }} pages appended to the IAP.
                     </p>
                     <div class='table-responsive'>
                         <table class='table table-sm small mb-0'>
@@ -757,10 +757,10 @@
                         + Aircraft
                     </button>
                     <span
-                        v-if='plan.uas.aircraft.length > 5'
+                        v-if='plan.uas.aircraft.length > uasRowsPerPage'
                         class='form-text ms-2'
                     >
-                        {{ Math.ceil(plan.uas.aircraft.length / 5) }} ICS-220 pages will be generated.
+                        {{ Math.ceil(plan.uas.aircraft.length / uasRowsPerPage) }} ICS-220{{ uasRowsPerPage === 4 ? ' WF' : '' }} pages will be generated.
                     </span>
                 </template>
             </TablerBorder>
@@ -778,8 +778,10 @@ import {
     iapFormPlanFor,
     loadIapInputs,
     usesWildlandFireForms,
+    UAS_ROWS_PER_PAGE,
     type IapContext,
 } from '../../../lib/iapData.ts';
+import { ICS220WF_UAS_ROWS } from '../../../lib/ics220wf.ts';
 import { buildIapPdf, saveIapPdf } from '../../../lib/iapPdf.ts';
 import {
     blankAircraftRow,
@@ -864,11 +866,18 @@ const wfForms = computed({
     set(on: boolean): void { if (plan.value) plan.value.formVersion = on ? 'wf' : 'fema'; },
 });
 
+/** Aircraft rows per ICS-220 page: 5 on the plugin's UAS page, 4 in the WF block 18. */
+const uasRowsPerPage = computed(() => (
+    plan.value && usesWildlandFireForms(plan.value) ? ICS220WF_UAS_ROWS : UAS_ROWS_PER_PAGE
+));
+
 const formsLabel = computed(() => {
     if (!plan.value) return '';
     return iapFormPlanFor(plan.value, ctx.value, hasUas.value)
         .map((id) => id.replace('ics', 'ICS-').toUpperCase().replace('ICS-220', 'ICS-220 UAS'))
-        .map((label) => (label === 'ICS-204' && usesWildlandFireForms(plan.value!) ? 'ICS-204 WF' : label))
+        .map((label) => (usesWildlandFireForms(plan.value!)
+            ? ({ 'ICS-204': 'ICS-204 WF', 'ICS-220 UAS': 'ICS-220 WF' } as Record<string, string>)[label] ?? label
+            : label))
         .join(' · ');
 });
 

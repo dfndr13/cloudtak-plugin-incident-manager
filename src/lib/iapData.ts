@@ -19,6 +19,7 @@ import { iapFormPlan as planForms, isUasLabel, usesWfForms, type IncidentCategor
 import type { FilledForm, IapFormId, IapSection } from './iapPdf.ts';
 import type { IapAssignmentPlan, IapPlan } from './iapPlanPersistence.ts';
 import { ics204wf } from './ics204wf.ts';
+import { ics220wf, ics220wfPageCount } from './ics220wf.ts';
 
 export type { IncidentCategory };
 
@@ -146,7 +147,9 @@ function ics202(plan: IapPlan, ctx: IapContext, attachments: IapFormId[]): Fille
             PositionTitle_5: plan.preparedByPosition,
             '8 Approved by Incident Commander Name': plan.approvedBy,
             DateTime_5: preparedStamp(plan),
-            ...(attachments.includes('ics220') ? { 'Other Attachments 1': 'ICS 220 (UAS)' } : {}),
+            ...(attachments.includes('ics220')
+                ? { 'Other Attachments 1': usesWildlandFireForms(plan) ? 'ICS 220 WF' : 'ICS 220 (UAS)' }
+                : {}),
         },
         check: [
             ...attachments
@@ -439,7 +442,11 @@ export function buildIapSections(
     if (forms.includes('ics206')) sections.push({ id: 'ics206', filled: ics206(plan, ctx) });
     if (forms.includes('ics207')) sections.push({ id: 'ics207', filled: ics207(plan, ctx) });
     sections.push({ id: 'ics208', filled: ics208(plan, ctx) });
-    if (forms.includes('ics220')) {
+    if (forms.includes('ics220') && usesWildlandFireForms(plan)) {
+        for (let chunk = 0; chunk < ics220wfPageCount(plan); chunk++) {
+            sections.push({ id: 'ics220wf', filled: ics220wf(plan, ctx, chunk) });
+        }
+    } else if (forms.includes('ics220')) {
         // One page per 5 aircraft; always at least one page.
         const pages = Math.max(1, Math.ceil(plan.uas.aircraft.length / UAS_ROWS_PER_PAGE));
         for (let chunk = 0; chunk < pages; chunk++) {

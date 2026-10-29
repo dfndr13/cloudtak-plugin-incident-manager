@@ -27,13 +27,14 @@ import ics211wfUrl from '../assets/iap/ics211wf.pdf?url';
 import ics214Url from '../assets/iap/ics214.pdf?url';
 import ics221Url from '../assets/iap/ics221.pdf?url';
 import ics220Url from '../assets/iap/ics220-uas.pdf?url';
+import ics220wfUrl from '../assets/iap/ics220wf.pdf?url';
 import { describeSave, saveGeneratedFile } from './fileTarget.ts';
 
 export type IapFormId =
     | 'ics202' | 'ics203' | 'ics204' | 'ics205' | 'ics205a'
     | 'ics206' | 'ics207' | 'ics208' | 'ics209' | 'ics220'
-    /** NWCG wildland fire version of the ICS-204 (wildland fire incidents). */
-    | 'ics204wf'
+    /** NWCG wildland fire (WF) versions, used when the OP chose WF forms. */
+    | 'ics204wf' | 'ics220wf'
     /** Not IAP forms: exported from the Resources tab (ADR-005). */
     | 'ics210' | 'ics211' | 'ics211wf' | 'ics214' | 'ics221';
 
@@ -54,6 +55,7 @@ const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics214: ics214Url,
     ics221: ics221Url,
     ics220: ics220Url,
+    ics220wf: ics220wfUrl,
 };
 
 export interface FilledForm {
