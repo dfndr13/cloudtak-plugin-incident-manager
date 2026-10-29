@@ -20,6 +20,7 @@ import type { FilledForm, IapFormId, IapSection } from './iapPdf.ts';
 import type { IapAssignmentPlan, IapPlan } from './iapPlanPersistence.ts';
 import { ics204wf } from './ics204wf.ts';
 import { ics220wf, ics220wfPageCount } from './ics220wf.ts';
+import { ics220fema, ics220femaPageCount } from './ics220fema.ts';
 import { buildIcs209Form } from './ics209.ts';
 import { airOpsResourceIds } from './resourceLogs.ts';
 import { loadResourceTrail } from './resourceLogPersistence.ts';
@@ -168,7 +169,7 @@ function ics202(plan: IapPlan, ctx: IapContext, attachments: IapFormId[]): Fille
             '8 Approved by Incident Commander Name': plan.approvedBy,
             DateTime_5: preparedStamp(plan),
             ...(attachments.includes('ics220')
-                ? { 'Other Attachments 1': ics220Kind(plan) === 'wf' ? 'ICS 220 WF' : 'ICS 220 (UAS)' }
+                ? { 'Other Attachments 1': ({ wf: 'ICS 220 WF', fema: 'ICS 220', uas: 'ICS 220 (UAS)' } as const)[ics220Kind(plan)] }
                 : {}),
         },
         check: [
@@ -464,9 +465,13 @@ function ics209(plan: IapPlan, ctx: IapContext): FilledForm {
     });
 }
 
-/** Which ICS-220 the OP prints: the ICS-220 WF (WF forms, or chosen) or the plugin's UAS page. */
-export function ics220Kind(plan: Pick<IapPlan, 'formVersion' | 'ics220Version'>): 'wf' | 'uas' {
-    return usesWildlandFireForms(plan) || plan.ics220Version === 'wf' ? 'wf' : 'uas';
+/**
+ * Which ICS-220 the OP prints: the ICS-220 WF (WF forms, or chosen), the
+ * official FEMA ICS-220 (chosen) or the plugin's UAS page.
+ */
+export function ics220Kind(plan: Pick<IapPlan, 'formVersion' | 'ics220Version'>): 'wf' | 'fema' | 'uas' {
+    if (usesWildlandFireForms(plan) || plan.ics220Version === 'wf') return 'wf';
+    return plan.ics220Version === 'fema' ? 'fema' : 'uas';
 }
 
 /** NWCG WF versions (where they exist) when the OP plan chose them, else FEMA (ADR-005). */
@@ -502,6 +507,10 @@ export function buildIapSections(
     if (forms.includes('ics220') && ics220Kind(plan) === 'wf') {
         for (let chunk = 0; chunk < ics220wfPageCount(plan); chunk++) {
             sections.push({ id: 'ics220wf', filled: ics220wf(plan, ctx, chunk) });
+        }
+    } else if (forms.includes('ics220') && ics220Kind(plan) === 'fema') {
+        for (let chunk = 0; chunk < ics220femaPageCount(plan); chunk++) {
+            sections.push({ id: 'ics220fema', filled: ics220fema(plan, ctx, chunk) });
         }
     } else if (forms.includes('ics220')) {
         // One page per 5 aircraft; always at least one page.

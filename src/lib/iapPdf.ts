@@ -28,6 +28,7 @@ import ics214Url from '../assets/iap/ics214.pdf?url';
 import ics221Url from '../assets/iap/ics221.pdf?url';
 import ics220Url from '../assets/iap/ics220-uas.pdf?url';
 import ics220wfUrl from '../assets/iap/ics220wf.pdf?url';
+import ics220femaUrl from '../assets/iap/ics220fema.pdf?url';
 import { describeSave, saveGeneratedFile } from './fileTarget.ts';
 
 export type IapFormId =
@@ -35,6 +36,8 @@ export type IapFormId =
     | 'ics206' | 'ics207' | 'ics208' | 'ics209' | 'ics220'
     /** NWCG wildland fire (WF) versions, used when the OP chose WF forms. */
     | 'ics204wf' | 'ics220wf'
+    /** Official FEMA ICS-220, chosen per OP instead of the plugin's UAS page. */
+    | 'ics220fema'
     /** Not IAP forms: exported from the Resources tab (ADR-005). */
     | 'ics210' | 'ics211' | 'ics211wf' | 'ics214' | 'ics221';
 
@@ -56,6 +59,7 @@ const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics221: ics221Url,
     ics220: ics220Url,
     ics220wf: ics220wfUrl,
+    ics220fema: ics220femaUrl,
 };
 
 export interface FilledForm {

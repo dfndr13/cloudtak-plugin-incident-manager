@@ -164,10 +164,11 @@ export interface IapPlan {
      */
     formVersion?: 'fema' | 'wf';
     /**
-     * Which ICS-220: the plugin's one-page UAS page (default) or the ICS-220 WF
-     * with every class of aircraft. WF forms always use the ICS-220 WF.
+     * Which ICS-220: the plugin's one-page UAS page (default), the official
+     * FEMA ICS-220 or the ICS-220 WF with every class of aircraft. WF forms
+     * always use the ICS-220 WF.
      */
-    ics220Version?: 'uas' | 'wf';
+    ics220Version?: 'uas' | 'fema' | 'wf';
     /**
      * Per-form "Prepared by" overrides — several ICS forms are signed by a
      * specific unit leader rather than the plan's author. Blank falls back to
@@ -320,7 +321,7 @@ export function iapPlanFromValue(raw: unknown, opNumber: number): IapPlan | null
             ics205a: (rec.includeForms as Record<string, unknown> | undefined)?.ics205a === true,
         },
         ...(rec.formVersion === 'wf' || rec.formVersion === 'fema' ? { formVersion: rec.formVersion } : {}),
-        ...(rec.ics220Version === 'uas' || rec.ics220Version === 'wf' ? { ics220Version: rec.ics220Version } : {}),
+        ...(rec.ics220Version === 'uas' || rec.ics220Version === 'fema' || rec.ics220Version === 'wf' ? { ics220Version: rec.ics220Version } : {}),
         preparers: {
             ics205: str((rec.preparers as Record<string, unknown> | undefined)?.ics205),
             ics206: str((rec.preparers as Record<string, unknown> | undefined)?.ics206),

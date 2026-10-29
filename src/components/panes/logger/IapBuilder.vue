@@ -670,6 +670,7 @@
                         class='form-select form-select-sm w-auto'
                     >
                         <option value='uas'>UAS page (original)</option>
+                        <option value='fema'>ICS-220 FEMA (all aircraft)</option>
                         <option value='wf'>ICS-220 WF (all aircraft)</option>
                     </select>
                 </label>
@@ -807,6 +808,11 @@ import {
     ICS220WF_UAS_ROWS,
     ics220wfPageCount,
 } from '../../../lib/ics220wf.ts';
+import {
+    ICS220FEMA_AIRCRAFT_ROWS,
+    ICS220FEMA_FIXED_WING_LINES,
+    ics220femaPageCount,
+} from '../../../lib/ics220fema.ts';
 import { buildIapPdf, saveIapPdf } from '../../../lib/iapPdf.ts';
 import {
     blankAircraftRow,
@@ -891,23 +897,33 @@ const wfForms = computed({
     set(on: boolean): void { if (plan.value) plan.value.formVersion = on ? 'wf' : 'fema'; },
 });
 
-/** ICS-220 for this OP when WF forms are off: the original UAS page or the ICS-220 WF. */
+/** ICS-220 for this OP when WF forms are off: the original UAS page, the FEMA ICS-220 or the ICS-220 WF. */
 const ics220Choice = computed({
-    get(): 'uas' | 'wf' { return plan.value?.ics220Version ?? 'uas'; },
-    set(v: 'uas' | 'wf'): void { if (plan.value) plan.value.ics220Version = v; },
+    get(): 'uas' | 'fema' | 'wf' { return plan.value?.ics220Version ?? 'uas'; },
+    set(v: 'uas' | 'fema' | 'wf'): void { if (plan.value) plan.value.ics220Version = v; },
 });
 
-const ics220Name = computed(() => (plan.value && ics220Kind(plan.value) === 'wf' ? 'ICS-220 WF' : 'ICS-220 UAS'));
+const ics220Kinds = {
+    uas: 'ICS-220 UAS',
+    fema: 'ICS-220',
+    wf: 'ICS-220 WF',
+} as const;
 
-const aircraftPerPageHint = computed(() => (plan.value && ics220Kind(plan.value) === 'wf'
-    ? `Per page: ${ICS220WF_HELICOPTER_ROWS} helicopters, ${ICS220WF_FIXED_WING_ROWS} fixed-wing, ${ICS220WF_UAS_ROWS} UAS`
-    : `${UAS_ROWS_PER_PAGE} per page`));
+const ics220Name = computed(() => ics220Kinds[plan.value ? ics220Kind(plan.value) : 'uas']);
+
+const aircraftPerPageHint = computed(() => {
+    const kind = plan.value ? ics220Kind(plan.value) : 'uas';
+    if (kind === 'wf') return `Per page: ${ICS220WF_HELICOPTER_ROWS} helicopters, ${ICS220WF_FIXED_WING_ROWS} fixed-wing, ${ICS220WF_UAS_ROWS} UAS`;
+    if (kind === 'fema') return `Per page: ${ICS220FEMA_AIRCRAFT_ROWS} helicopters + UAS, ${ICS220FEMA_FIXED_WING_LINES} fixed-wing`;
+    return `${UAS_ROWS_PER_PAGE} per page`;
+});
 
 const ics220Pages = computed(() => {
     if (!plan.value) return 1;
-    return ics220Kind(plan.value) === 'wf'
-        ? ics220wfPageCount(plan.value)
-        : Math.max(1, Math.ceil(plan.value.uas.aircraft.length / UAS_ROWS_PER_PAGE));
+    const kind = ics220Kind(plan.value);
+    if (kind === 'wf') return ics220wfPageCount(plan.value);
+    if (kind === 'fema') return ics220femaPageCount(plan.value);
+    return Math.max(1, Math.ceil(plan.value.uas.aircraft.length / UAS_ROWS_PER_PAGE));
 });
 
 const formsLabel = computed(() => {
