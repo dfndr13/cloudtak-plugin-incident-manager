@@ -20,12 +20,15 @@ import ics206Url from '../assets/iap/ics206.pdf?url';
 import ics207Url from '../assets/iap/ics207.pdf?url';
 import ics208Url from '../assets/iap/ics208.pdf?url';
 import ics209Url from '../assets/iap/ics209.pdf?url';
+import ics211Url from '../assets/iap/ics211.pdf?url';
 import ics220Url from '../assets/iap/ics220-uas.pdf?url';
 import { describeSave, saveGeneratedFile } from './fileTarget.ts';
 
 export type IapFormId =
     | 'ics202' | 'ics203' | 'ics204' | 'ics205' | 'ics205a'
-    | 'ics206' | 'ics207' | 'ics208' | 'ics209' | 'ics220';
+    | 'ics206' | 'ics207' | 'ics208' | 'ics209' | 'ics220'
+    /** Not an IAP form: the check-in list, exported from the Resources tab. */
+    | 'ics211';
 
 const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics202: ics202Url,
@@ -37,6 +40,7 @@ const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics207: ics207Url,
     ics208: ics208Url,
     ics209: ics209Url,
+    ics211: ics211Url,
     ics220: ics220Url,
 };
 

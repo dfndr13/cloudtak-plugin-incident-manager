@@ -10,7 +10,24 @@
             >
                 D4H agencies synced {{ formatD4hSyncTime(meta.fetchedAt) }}
             </span>
-            <div class='ms-auto d-flex gap-2'>
+            <div class='ms-auto d-flex gap-2 align-items-center'>
+                <TablerEnum
+                    v-if='activeMission'
+                    v-model='ics211Op'
+                    :options='ics211OpOptions'
+                    :disabled='exporting'
+                    title='ICS-211 for'
+                />
+                <button
+                    v-if='activeMission'
+                    type='button'
+                    class='btn btn-outline-primary btn-sm'
+                    :disabled='exporting'
+                    title='Incident Check-In List (ICS-211) PDF'
+                    @click='onExportIcs211'
+                >
+                    {{ exporting ? 'Building…' : 'ICS-211 PDF' }}
+                </button>
                 <button
                     v-if='infoDismissed'
                     type='button'
@@ -61,6 +78,13 @@
             :severity='statusError ? "danger" : "success"'
             :title='statusError ? "Error" : "Saved"'
             :description='statusMessage'
+        />
+        <TablerInlineAlert
+            v-if='exportNotice'
+            class='mb-3'
+            :severity='exportError ? "danger" : "success"'
+            title='ICS-211'
+            :description='exportNotice'
         />
         <TablerInlineAlert
             v-if='trailError'
@@ -475,6 +499,9 @@ import {
     type ResourceLogInput,
 } from '../../lib/resourceLogs.ts';
 import { loadResourceTrail, sendResourceLog } from '../../lib/resourceLogPersistence.ts';
+import { buildIcs211Forms, ics211Resources } from '../../lib/ics211.ts';
+import { buildIapPdf, saveIapPdf } from '../../lib/iapPdf.ts';
+import { loadIcs201FromMission } from '../../lib/ics201.ts';
 
 const { activeMission, requireActiveMission, selectHTabGuarded } = useIncident();
 const {
@@ -712,6 +739,47 @@ function ics210StatusFor(id: string): string {
 async function onIcs210StatusChange(id: string, label: string): Promise<void> {
     if (label === UNASSIGNED || label === ics210StatusFor(id)) return;
     await logAction(id, { action: 'status', status: label as Ics210Status });
+}
+
+// ── ICS-211 Incident Check-In List (ADR-005) ───────────────────────────────
+const ICS211_ALL_OPS = 'All OPs';
+const ics211Op = ref(ICS211_ALL_OPS);
+const ics211OpOptions = computed(() => [ICS211_ALL_OPS, ...opLabelOptions.value]);
+const exporting = ref(false);
+const exportNotice = ref('');
+const exportError = ref(false);
+
+async function onExportIcs211(): Promise<void> {
+    const mission = activeMission.value;
+    if (!mission) return;
+    exporting.value = true;
+    exportNotice.value = '';
+    exportError.value = false;
+    try {
+        const form201 = (await loadIcs201FromMission(mission.guid, mission.missionToken, mission.name, mission)).form;
+        const incidentName = form201.incidentName || mission.name;
+        const op = ics211Op.value === ICS211_ALL_OPS ? 'all' : opNumberFromLabel(ics211Op.value);
+        const resources = ics211Resources(assignments.value, op);
+        const forms = buildIcs211Forms({
+            incidentName,
+            incidentNumber: form201.incidentNumber,
+            start: typeof op === 'number' ? opRegistry.value.find((o) => o.opNumber === op)?.openedAt : undefined,
+            preparedBy: form201.preparedByName,
+            preparedAt: new Date(),
+            resources,
+            assignmentName: assignmentNameFor,
+        });
+        const bytes = await buildIapPdf(forms.map((filled) => ({ id: 'ics211' as const, filled })));
+        const suffix = op === 'all' ? '' : `-${op == null ? 'Initial' : `OP${op}`}`;
+        const safe = `${incidentName}${suffix}-ICS211`.replace(/[^\w.-]+/g, '_');
+        const where = await saveIapPdf(bytes, `${safe}.pdf`, incidentName);
+        exportNotice.value = `${where} (${resources.length} resource${resources.length === 1 ? '' : 's'})`;
+    } catch (err) {
+        exportError.value = true;
+        exportNotice.value = err instanceof Error ? err.message : String(err);
+    } finally {
+        exporting.value = false;
+    }
 }
 
 const resourceFormOptions = computed(() => [RESOURCE_PLACEHOLDER, ...resourceTypeOptions]);
