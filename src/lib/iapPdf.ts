@@ -14,6 +14,7 @@ import type { PDFFont, PDFForm } from '../vendor/pdf-lib.esm.min.js';
 import ics202Url from '../assets/iap/ics202.pdf?url';
 import ics203Url from '../assets/iap/ics203.pdf?url';
 import ics204Url from '../assets/iap/ics204.pdf?url';
+import ics204wfUrl from '../assets/iap/ics204wf.pdf?url';
 import ics205Url from '../assets/iap/ics205.pdf?url';
 import ics205aUrl from '../assets/iap/ics205a.pdf?url';
 import ics206Url from '../assets/iap/ics206.pdf?url';
@@ -30,6 +31,8 @@ import { describeSave, saveGeneratedFile } from './fileTarget.ts';
 export type IapFormId =
     | 'ics202' | 'ics203' | 'ics204' | 'ics205' | 'ics205a'
     | 'ics206' | 'ics207' | 'ics208' | 'ics209' | 'ics220'
+    /** NWCG wildland fire version of the ICS-204 (wildland fire incidents). */
+    | 'ics204wf'
     /** Not IAP forms: exported from the Resources tab (ADR-005). */
     | 'ics210' | 'ics211' | 'ics214' | 'ics221';
 
@@ -37,6 +40,7 @@ const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics202: ics202Url,
     ics203: ics203Url,
     ics204: ics204Url,
+    ics204wf: ics204wfUrl,
     ics205: ics205Url,
     ics205a: ics205aUrl,
     ics206: ics206Url,

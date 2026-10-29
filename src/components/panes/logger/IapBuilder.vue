@@ -44,6 +44,17 @@
                     >
                     <span class='form-check-label small'>209</span>
                 </label>
+                <label
+                    class='form-check mb-0'
+                    title='Use the NWCG wildland fire (WF) versions where they exist (ICS-204 WF)'
+                >
+                    <input
+                        v-model='wfForms'
+                        type='checkbox'
+                        class='form-check-input'
+                    >
+                    <span class='form-check-label small'>WF forms</span>
+                </label>
                 <div class='ms-auto d-flex gap-2'>
                     <button
                         class='btn btn-outline-secondary btn-sm'
@@ -766,6 +777,7 @@ import {
     buildIapSections,
     iapFormPlanFor,
     loadIapInputs,
+    usesWildlandFireForms,
     type IapContext,
 } from '../../../lib/iapData.ts';
 import { buildIapPdf, saveIapPdf } from '../../../lib/iapPdf.ts';
@@ -846,10 +858,17 @@ const orgFields = [
     { key: 'financeChief', label: 'Finance / Admin Chief' },
 ] as const;
 
+/** FEMA or NWCG WF forms for this OP (defaults by incident type). */
+const wfForms = computed({
+    get(): boolean { return plan.value ? usesWildlandFireForms(plan.value, ctx.value) : false; },
+    set(on: boolean): void { if (plan.value) plan.value.formVersion = on ? 'wf' : 'fema'; },
+});
+
 const formsLabel = computed(() => {
     if (!plan.value) return '';
     return iapFormPlanFor(plan.value, ctx.value, hasUas.value)
         .map((id) => id.replace('ics', 'ICS-').toUpperCase().replace('ICS-220', 'ICS-220 UAS'))
+        .map((label) => (label === 'ICS-204' && usesWildlandFireForms(plan.value!, ctx.value) ? 'ICS-204 WF' : label))
         .join(' · ');
 });
 

@@ -15,9 +15,10 @@ import { incidentPostFromSchema } from './incidentPostPersistence.ts';
 import { loadMissionSchema } from './missionSchema.ts';
 import { opAssignmentsFromSchema } from './opAssignmentPersistence.ts';
 import { resourceAssignmentsFromSchemaValue, type ResourceAssignment } from './resourceAssignments.ts';
-import { iapFormPlan as planForms, isUasLabel, type IncidentCategory } from '../domain/iap.ts';
+import { iapFormPlan as planForms, isUasLabel, usesWfForms, type IncidentCategory } from '../domain/iap.ts';
 import type { FilledForm, IapFormId, IapSection } from './iapPdf.ts';
 import type { IapAssignmentPlan, IapPlan } from './iapPlanPersistence.ts';
+import { ics204wf } from './ics204wf.ts';
 
 export type { IncidentCategory };
 
@@ -409,6 +410,14 @@ export function iapFormPlanFor(plan: IapPlan, ctx: IapContext, hasUas = false): 
     return order.filter((id) => set.has(id));
 }
 
+/**
+ * NWCG WF versions (where they exist) or FEMA forms: the OP plan's choice,
+ * else by incident type — WF for wildland fire (ADR-005).
+ */
+export function usesWildlandFireForms(plan: Pick<IapPlan, 'formVersion'>, ctx: IapContext): boolean {
+    return usesWfForms(plan.formVersion, ctx.category);
+}
+
 /** Build the ordered, filled section list for the merged IAP PDF. */
 export function buildIapSections(
     plan: IapPlan,
@@ -422,7 +431,11 @@ export function buildIapSections(
         { id: 'ics203', filled: ics203(plan, ctx) },
     ];
     plan.assignments.forEach((a) => {
-        sections.push({ id: 'ics204', filled: ics204(plan, ctx, a), pageField: 'IAP Page_3' });
+        if (usesWildlandFireForms(plan, ctx)) {
+            sections.push({ id: 'ics204wf', filled: ics204wf(plan, ctx.incidentName, a) });
+        } else {
+            sections.push({ id: 'ics204', filled: ics204(plan, ctx, a), pageField: 'IAP Page_3' });
+        }
     });
     sections.push({ id: 'ics205', filled: ics205(plan, ctx), pageField: 'IAP Page_4' });
     if (forms.includes('ics205a')) sections.push({ id: 'ics205a', filled: ics205a(plan, ctx) });

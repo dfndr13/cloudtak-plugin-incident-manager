@@ -14,6 +14,7 @@ import { loadSchemaSubscription, schemaMissionToken } from './incidentSubscripti
 import { loadMissionSchema, saveMissionSchema, type MissionSchema } from './missionSchema.ts';
 import type { IapInputs } from './iapData.ts';
 import { resourcesForAssignment } from './resourceActions.ts';
+import { usesWfForms } from '../domain/iap.ts';
 
 export interface IapCommsRow {
     zone: string;
@@ -158,6 +159,11 @@ export interface IapPlan {
     commsList: IapCommsListRow[];
     /** Optional forms the IMT chose to include (220 lives on `uas.include`). */
     includeForms: { ics207: boolean; ics209: boolean; ics205a: boolean };
+    /**
+     * FEMA forms or the NWCG wildland fire (WF) versions where they exist
+     * (ICS-204 WF…). Unset = by incident type: WF for wildland fire, else FEMA.
+     */
+    formVersion?: 'fema' | 'wf';
     /**
      * Per-form "Prepared by" overrides — several ICS forms are signed by a
      * specific unit leader rather than the plan's author. Blank falls back to
@@ -309,6 +315,7 @@ export function iapPlanFromValue(raw: unknown, opNumber: number): IapPlan | null
             ics209: (rec.includeForms as Record<string, unknown> | undefined)?.ics209 === true,
             ics205a: (rec.includeForms as Record<string, unknown> | undefined)?.ics205a === true,
         },
+        ...(rec.formVersion === 'wf' || rec.formVersion === 'fema' ? { formVersion: rec.formVersion } : {}),
         preparers: {
             ics205: str((rec.preparers as Record<string, unknown> | undefined)?.ics205),
             ics206: str((rec.preparers as Record<string, unknown> | undefined)?.ics206),
@@ -390,6 +397,7 @@ export function prefillIapPlan(input: IapInputs, previous?: IapPlan | null): Iap
         includeForms: previous?.includeForms
             ? { ...previous.includeForms }
             : { ics207: false, ics209: false, ics205a: false },
+        formVersion: previous?.formVersion ?? (usesWfForms(undefined, input.category) ? 'wf' : 'fema'),
         preparers: previous?.preparers
             ? { ...previous.preparers }
             : { ics205: '', ics206: '', ics220: '' },

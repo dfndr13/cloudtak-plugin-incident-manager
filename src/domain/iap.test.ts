@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { iapFormPlan, isUasLabel, usesExtendedIcsSet } from './iap.ts';
+import { iapFormPlan, isUasLabel, usesExtendedIcsSet, usesWfForms } from './iap.ts';
 
 test('iapFormPlan: base SAR set', () => {
     assert.deepEqual(iapFormPlan({ category: 'search', hasUas: false }),
@@ -46,4 +46,11 @@ test('usesExtendedIcsSet / isUasLabel', () => {
     assert.equal(isUasLabel('Fixed Wing'), false);
     assert.equal(isUasLabel(undefined, 'Team UAV-2'), true);
     assert.equal(isUasLabel('Grid Team', 'GT-4'), false);
+});
+
+test('usesWfForms: explicit choice wins, else WF only for wildland fire', () => {
+    assert.equal(usesWfForms(undefined, 'wildland-fire'), true);
+    assert.equal(usesWfForms(undefined, 'search'), false);
+    assert.equal(usesWfForms('wf', 'search'), true);
+    assert.equal(usesWfForms('fema', 'wildland-fire'), false);
 });
