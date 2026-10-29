@@ -23,14 +23,15 @@ import ics209Url from '../assets/iap/ics209.pdf?url';
 import ics210Url from '../assets/iap/ics210.pdf?url';
 import ics211Url from '../assets/iap/ics211.pdf?url';
 import ics214Url from '../assets/iap/ics214.pdf?url';
+import ics221Url from '../assets/iap/ics221.pdf?url';
 import ics220Url from '../assets/iap/ics220-uas.pdf?url';
 import { describeSave, saveGeneratedFile } from './fileTarget.ts';
 
 export type IapFormId =
     | 'ics202' | 'ics203' | 'ics204' | 'ics205' | 'ics205a'
     | 'ics206' | 'ics207' | 'ics208' | 'ics209' | 'ics220'
-    /** Not IAP forms: status change, check-in list, activity log (Resources tab). */
-    | 'ics210' | 'ics211' | 'ics214';
+    /** Not IAP forms: exported from the Resources tab (ADR-005). */
+    | 'ics210' | 'ics211' | 'ics214' | 'ics221';
 
 const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics202: ics202Url,
@@ -45,6 +46,7 @@ const TEMPLATE_URLS: Record<IapFormId, string> = {
     ics210: ics210Url,
     ics211: ics211Url,
     ics214: ics214Url,
+    ics221: ics221Url,
     ics220: ics220Url,
 };
 
