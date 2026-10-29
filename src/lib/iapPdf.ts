@@ -93,14 +93,22 @@ const MIN_FONT = 4;
  * assignments) overflows them at a fixed size — so measure and scale.
  */
 function fitFontSize(
-    field: { acroField: { getWidgets(): { getRectangle(): { width: number; height: number } }[] };
+    field: { acroField: { getWidgets(): {
+        getRectangle(): { width: number; height: number };
+        getAppearanceCharacteristics?(): { getRotation?(): number | undefined } | undefined;
+    }[] };
         isMultiline?(): boolean },
     text: string,
     font: PDFFont,
 ): number {
     let rect: { width: number; height: number };
     try {
-        rect = field.acroField.getWidgets()[0].getRectangle();
+        const widget = field.acroField.getWidgets()[0];
+        rect = widget.getRectangle();
+        // Rotated boxes (e.g. the ICS-209 column headers, /MK /R 90) are
+        // written along their height: measure them the right way round.
+        const rotation = widget.getAppearanceCharacteristics?.()?.getRotation?.() ?? 0;
+        if (Math.abs(rotation) % 180 === 90) rect = { width: rect.height, height: rect.width };
     } catch {
         return MAX_FONT;
     }

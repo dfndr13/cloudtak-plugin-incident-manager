@@ -892,6 +892,11 @@ async function load(prefer: 'saved' | 'prefill' = 'saved'): Promise<void> {
             incidentName: inputs.incidentName,
             incidentNumber: inputs.incidentNumber,
             category: props.category,
+            incidentStartDate: inputs.form201.date,
+            incidentStartTime: inputs.form201.time,
+            location: inputs.form201.initialPlanningPoint,
+            weather: inputs.form201.weatherSummary,
+            resources: inputs.resources,
         };
         hasUas.value = inputs.hasUas;
 

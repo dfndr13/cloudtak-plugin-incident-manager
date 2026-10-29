@@ -20,6 +20,7 @@ import type { FilledForm, IapFormId, IapSection } from './iapPdf.ts';
 import type { IapAssignmentPlan, IapPlan } from './iapPlanPersistence.ts';
 import { ics204wf } from './ics204wf.ts';
 import { ics220wf, ics220wfPageCount } from './ics220wf.ts';
+import { buildIcs209Form } from './ics209.ts';
 
 export type { IncidentCategory };
 
@@ -130,6 +131,12 @@ export interface IapContext {
     incidentName: string;
     incidentNumber: string;
     category: IncidentCategory;
+    /** ICS-209 inputs from the ICS-201 and the OP's resource records (ADR-005). */
+    incidentStartDate?: string;
+    incidentStartTime?: string;
+    location?: string;
+    weather?: string;
+    resources?: ResourceAssignment[];
 }
 
 function ics202(plan: IapPlan, ctx: IapContext, attachments: IapFormId[]): FilledForm {
@@ -404,13 +411,44 @@ export function iapFormPlanFor(plan: IapPlan, ctx: IapContext, hasUas = false): 
         hasUas: plan.uas.include || hasUas,
         hasMedical: hasMedicalContent(plan),
         hasCommsList: plan.includeForms.ics205a && plan.commsList.some((r) => r.name.trim() || r.position.trim()),
+        // 207 / 209: the plan's checkboxes decide, on any incident type.
+        include207: plan.includeForms.ics207,
+        include209: plan.includeForms.ics209,
     }) as IapFormId[];
     const set = new Set(base);
-    // Explicit include toggles add forms the category rules left out.
-    if (plan.includeForms.ics207) set.add('ics207');
-    if (plan.includeForms.ics209) set.add('ics209');
     const order: IapFormId[] = ['ics202', 'ics203', 'ics204', 'ics205', 'ics205a', 'ics206', 'ics207', 'ics208', 'ics209', 'ics220'];
     return order.filter((id) => set.has(id));
+}
+
+/** ICS-209 Incident Status Summary for the OP (ADR-005). */
+function ics209(plan: IapPlan, ctx: IapContext): FilledForm {
+    // Persons per resource from the ICS-204 rows, by identifier.
+    const persons = new Map<string, number>();
+    for (const a of plan.assignments) {
+        for (const r of a.resources) {
+            const n = Number.parseInt(r.persons, 10);
+            if (r.identifier.trim() && Number.isFinite(n)) persons.set(r.identifier.trim(), n);
+        }
+    }
+    return buildIcs209Form({
+        incidentName: ctx.incidentName,
+        incidentNumber: ctx.incidentNumber,
+        opNumber: plan.opNumber,
+        opFrom: [plan.dateFrom, plan.timeFrom].filter(Boolean).join(' '),
+        opTo: [plan.dateTo, plan.timeTo].filter(Boolean).join(' '),
+        incidentStartDate: ctx.incidentStartDate ?? '',
+        incidentStartTime: ctx.incidentStartTime ?? '',
+        incidentCommander: plan.org.incidentCommander,
+        preparedBy: plan.preparedBy,
+        preparedByPosition: plan.preparedByPosition,
+        preparedAt: preparedStamp(plan),
+        location: ctx.location ?? '',
+        significantEvents: plan.situationalAwareness,
+        weather: ctx.weather ?? '',
+        objectives: plan.objectives,
+        resources: ctx.resources ?? [],
+        personsFor: (r) => persons.get(r.resourceIdentifier.trim()) ?? null,
+    });
 }
 
 /** NWCG WF versions (where they exist) when the OP plan chose them, else FEMA (ADR-005). */
@@ -442,6 +480,7 @@ export function buildIapSections(
     if (forms.includes('ics206')) sections.push({ id: 'ics206', filled: ics206(plan, ctx) });
     if (forms.includes('ics207')) sections.push({ id: 'ics207', filled: ics207(plan, ctx) });
     sections.push({ id: 'ics208', filled: ics208(plan, ctx) });
+    if (forms.includes('ics209')) sections.push({ id: 'ics209', filled: ics209(plan, ctx) });
     if (forms.includes('ics220') && usesWildlandFireForms(plan)) {
         for (let chunk = 0; chunk < ics220wfPageCount(plan); chunk++) {
             sections.push({ id: 'ics220wf', filled: ics220wf(plan, ctx, chunk) });

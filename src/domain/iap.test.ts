@@ -7,16 +7,17 @@ test('iapFormPlan: base SAR set', () => {
         ['ics202', 'ics203', 'ics204', 'ics205', 'ics208']);
 });
 
-test('iapFormPlan: wildland fire and disaster add 207 + 209', () => {
-    for (const category of ['wildland-fire', 'disaster']) {
-        const plan = iapFormPlan({ category, hasUas: false });
+test('iapFormPlan: 207 + 209 only when ticked, on any incident type', () => {
+    for (const category of ['wildland-fire', 'disaster', 'search']) {
+        const off = iapFormPlan({ category, hasUas: false });
+        assert.ok(!off.includes('ics207') && !off.includes('ics209'), category);
+        const plan = iapFormPlan({ category, hasUas: false, include207: true, include209: true });
         assert.ok(plan.includes('ics207'), category);
         assert.ok(plan.includes('ics209'), category);
         // 202 always leads; 209 trails the safety message
         assert.equal(plan[0], 'ics202');
         assert.ok(plan.indexOf('ics208') < plan.indexOf('ics209'));
     }
-    assert.ok(!iapFormPlan({ category: 'rescue', hasUas: false }).includes('ics207'));
 });
 
 test('iapFormPlan: medical plan content pulls in 206', () => {

@@ -82,3 +82,7 @@ writers do not overwrite each other.
 - ICS-210 uses the official FEMA statuses; the status chosen is recorded in the log entry, so no
   field is added to the resource record. Revisit if other status sets are needed.
 - The trail stays on the management DataSync (planners only) for now.
+- ICS-207 and ICS-209 are in the IAP only when ticked in the OP's plan, on any incident type (they
+  were automatic for wildland fire / disaster). The ICS-209 is now generated: incident, location,
+  weather and objectives blocks from the plan and the ICS-201, and the resource commitment summary
+  (block 48-52) counted from the resources checked in for the OP.

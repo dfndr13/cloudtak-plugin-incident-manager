@@ -4,8 +4,9 @@
  *
  * Base SAR set: 202 (objectives), 203 (organization), 204 per assignment,
  * 205 (comms), 208 (safety). 205A (comms list) is included when it has rows;
- * 206 (medical) is included once the medical plan has content. Wildland Fire / Disaster add 207 (org chart) and 209 (status
- * summary). Any UAS/drone resource adds the modified 220.
+ * 206 (medical) is included once the medical plan has content. 207 (org chart) and
+ * 209 (status summary) are included when the OP's plan ticks them, on any incident
+ * type (ADR-005). Any UAS/drone resource adds the modified 220.
  */
 
 export type IapFormId =
@@ -36,6 +37,9 @@ export interface IapPlanInput {
     hasMedical?: boolean;
     /** Communications list (ICS-205A) explicitly included. */
     hasCommsList?: boolean;
+    /** ICS-207 / ICS-209 ticked in the OP's plan (any incident type). */
+    include207?: boolean;
+    include209?: boolean;
 }
 
 /** Ordered list of form types included in the IAP. */
@@ -43,9 +47,9 @@ export function iapFormPlan(input: IapPlanInput): IapFormId[] {
     const plan: IapFormId[] = ['ics202', 'ics203', 'ics204', 'ics205'];
     if (input.hasCommsList) plan.push('ics205a');
     if (input.hasMedical) plan.push('ics206');
-    if (usesExtendedIcsSet(input.category)) plan.push('ics207');
+    if (input.include207) plan.push('ics207');
     plan.push('ics208');
-    if (usesExtendedIcsSet(input.category)) plan.push('ics209');
+    if (input.include209) plan.push('ics209');
     if (input.hasUas) plan.push('ics220');
     return plan;
 }
