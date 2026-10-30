@@ -25,46 +25,35 @@
                     :disabled='exporting'
                     title='FEMA or NWCG wildland fire (WF) version — ICS-211 WF is one card per resource'
                 />
-                <button
+                <TablerDropdown
                     v-if='activeMission'
-                    type='button'
-                    class='btn btn-outline-primary btn-sm'
-                    :disabled='exporting'
-                    title='Incident Check-In List (ICS-211) PDF'
-                    @click='onExportForm("ICS-211")'
+                    width='280'
                 >
-                    ICS-211 PDF
-                </button>
-                <button
-                    v-if='activeMission'
-                    type='button'
-                    class='btn btn-outline-primary btn-sm'
-                    :disabled='exporting'
-                    title='Resource Status Change (ICS-210) PDF'
-                    @click='onExportForm("ICS-210")'
-                >
-                    ICS-210 PDF
-                </button>
-                <button
-                    v-if='activeMission'
-                    type='button'
-                    class='btn btn-outline-primary btn-sm'
-                    :disabled='exporting'
-                    title='Activity Log (ICS-214) PDF of the resource trail'
-                    @click='onExportForm("ICS-214")'
-                >
-                    ICS-214 PDF
-                </button>
-                <button
-                    v-if='activeMission'
-                    type='button'
-                    class='btn btn-outline-primary btn-sm'
-                    :disabled='exporting'
-                    title='Demobilization Check-Out (ICS-221) PDF, one per demobilized resource'
-                    @click='onExportForm("ICS-221")'
-                >
-                    ICS-221 PDF
-                </button>
+                    <button
+                        type='button'
+                        class='btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1'
+                        :disabled='exporting'
+                        title='ICS form PDFs for the chosen OP'
+                    >
+                        ICS forms
+                        <IconChevronDown
+                            :size='14'
+                            stroke='1.5'
+                        />
+                    </button>
+                    <template #dropdown>
+                        <button
+                            v-for='form in ICS_FORM_MENU'
+                            :key='form.id'
+                            type='button'
+                            class='dropdown-item'
+                            :disabled='exporting'
+                            @click='onExportForm(form.id)'
+                        >
+                            {{ form.label }}
+                        </button>
+                    </template>
+                </TablerDropdown>
                 <button
                     v-if='infoDismissed'
                     type='button'
@@ -510,6 +499,7 @@ import {
     TablerInput,
     TablerEnum,
     TablerInlineAlert,
+    TablerDropdown,
 } from '@tak-ps/vue-tabler';
 import { useIncident } from '../../composables/useIncident.ts';
 import { usePluginSettings } from '../../composables/usePluginSettings.ts';
@@ -865,6 +855,13 @@ async function syncFormsVersion(): Promise<void> {
 watch([formsOp, () => activeMission.value?.guid], () => void syncFormsVersion(), { immediate: true });
 const exportNotice = ref('');
 const exportError = ref(false);
+
+const ICS_FORM_MENU = [
+    { id: 'ICS-211', label: 'ICS-211 Incident Check-In List' },
+    { id: 'ICS-210', label: 'ICS-210 Resource Status Change' },
+    { id: 'ICS-214', label: 'ICS-214 Activity Log' },
+    { id: 'ICS-221', label: 'ICS-221 Demobilization Check-Out' },
+] as const;
 
 function resourceNameFor(id: string): string {
     const r = assignments.value.find((a) => a.id === id);
